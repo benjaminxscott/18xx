@@ -211,7 +211,7 @@ module Engine
       "value": 80,
       "discount": 10,
       "revenue": 10,
-      "desc": "Owning Public Company or its Director may build one (1) free tile on a desert hex (marked by a cactus icon). This power does not go away after a 5/5+ train is purchased.",
+      "desc": "A Public Company who owns this private (or its Director) is entitled to a one-time discount of £40 when placing a tile on any desert hex marked by a cactus icon. This power does not go away after a 5/5+ train is purchased.",
       "abilities": [
         {
           "type":"tile_lay",
@@ -294,7 +294,7 @@ module Engine
       "value": 0,
       "discount": -230,
       "revenue": 30,
-      "desc": "The owner receives a 20% Director's share of the CAR, which must start at a par value of 100£. Cannot be bought by a corporation",
+      "desc": "The owner receives a 20% President's share of the CAR, which must start at a par value of 100£. Cannot be bought by a corporation",
       "abilities": [
         {
             "type": "shares",
