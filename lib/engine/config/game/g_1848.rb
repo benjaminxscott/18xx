@@ -352,7 +352,8 @@ module Engine
         100,
         100
       ],
-      "color": "dimGray"
+      "text_color": "black",
+      "color": "darkGray"
     },
     {
       "sym": "FT",
