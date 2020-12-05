@@ -876,7 +876,7 @@ module Engine
     {
       "name": "II",
       "train_limit": 4,
-      "on": "4",
+      "on": "3/5, 4",
       "tiles": [
         "yellow",
         "green"
@@ -888,7 +888,7 @@ module Engine
     },
     {
       "name": "III",
-      "on": "5",
+      "on": "4/6, 5",
       "train_limit": 3,
       "tiles": [
         "yellow",
@@ -899,7 +899,7 @@ module Engine
     },
     {
       "name": "IV",
-      "on": "6",
+      "on": "6, 7/8",
       "train_limit": 2,
       "tiles": [
         "yellow",
