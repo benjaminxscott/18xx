@@ -18,6 +18,8 @@ module Engine
       # Two tiles can be laid at a time, with max one upgrade
       TILE_LAYS = [{ lay: true, upgrade: true }, { lay: true, upgrade: :not_if_upgraded }].freeze
 
+      DISCARDED_TRAINS = :remove
+      CLOSED_CORP_TRAINS = :removed
       SELL_BUY_ORDER = :sell_buy
       SELL_MOVEMENT = :down_block
 
