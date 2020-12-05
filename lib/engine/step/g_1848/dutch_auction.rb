@@ -123,13 +123,9 @@ module Engine
           @companies.delete(company)
           @log << "#{player.name} buys #{company.name} for #{@game.format_currency(price)}"
 
-          company.abilities(:share) do |ability|
-            share = ability.share
-
-            if share.president
-              # TODO: - I think this isn't necessary since we must par CAR to 100
-              @round.company_pending_par = company
-            else
+          company.abilities(:shares) do |ability|
+            ability.shares.each do |share|
+              @game.stock_market.set_par(share.corporation, @game.stock_market.share_price(1, 5)) if share.president
               @game.share_pool.buy_shares(player, share, exchange: :free)
             end
           end

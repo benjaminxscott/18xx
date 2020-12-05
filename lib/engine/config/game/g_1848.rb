@@ -251,7 +251,16 @@ module Engine
       "value": 0,
       "discount": -170,
       "revenue": 25,
-      "desc": "The owner receives a 10% share in the QR. Cannot be bought by a corporation"
+      "desc": "The owner receives a 10% share of the QR. Cannot be bought by a corporation",
+      "abilities": [
+        {
+          "type": "shares",
+          "shares": "QR_1"
+        },
+        {
+            "type": "no_buy"
+        }
+      ]
     },
     {
       "sym": "P6",
@@ -259,7 +268,16 @@ module Engine
       "value": 0,
       "discount": -230,
       "revenue": 30,
-      "desc": "The owner receives a Director's Share share in the CAR, which must start at a par value of 100£. Cannot be bought by a corporation"
+      "desc": "The owner receives a 20% Director's share of the CAR, which must start at a par value of 100£. Cannot be bought by a corporation",
+      "abilities": [
+        {
+            "type": "shares",
+            "shares": "CAR_0"
+        },
+        {
+            "type": "no_buy"
+        }
+      ]
     }
   ],
   "corporations": [
