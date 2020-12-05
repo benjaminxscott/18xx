@@ -701,13 +701,13 @@ module Engine
       ]
     },
     "gray": {
-      "city=revenue:40;path=a:0,b:_0;path=a:1,b:_0;path=a:4,b:_0;path=a:5,b:_0": [
+      "city=revenue:40;path=a:0,b:_0;path=a:1,b:_0;path=a:4,b:_0;path=a:5,b:_0;border=edge:1;border=edge:4": [
         "D2"
       ],
-      "path=a:0,b:4": [
+      "path=a:0,b:4;border=edge:4": [
         "C3"
       ],
-      "path=a:1,b:5": [
+      "path=a:1,b:5;border=edge:1": [
         "E1"
       ],
       "path=a:0,b:5": [
@@ -718,10 +718,10 @@ module Engine
       ]
     },
     "yellow": {
-      "city=revenue:40;city=revenue:40;city=revenue:40;path=a:1,b:_0;path=a:3,b:_0;label=M;upgrade=cost:20,terrain:water": [
+      "city=revenue:40;city=revenue:40;city=revenue:40;path=a:1,b:_0;path=a:3,b:_1;label=M;upgrade=cost:20,terrain:water": [
         "L12"
       ],
-      "city=revenue:30;city=revenue:30;path=a:1,b:_0;path=a:4,b:_0;label=T": [
+      "city=revenue:30;city=revenue:30;path=a:1,b:_0;path=a:4,b:_1;label=T": [
         "F16"
       ]
     },

@@ -172,6 +172,7 @@ module Engine
       HOME_TOKEN_TIMING = :operate
 
       DISCARDED_TRAINS = :discard # discarded or removed?
+      DISCARDED_TRAIN_DISCOUNT = 0 # percent
       CLOSED_CORP_TRAINS = :removed # discarded or removed?
 
       MUST_BUY_TRAIN = :route # When must the company buy a train if it doesn't have one (route, never, always)
@@ -686,11 +687,11 @@ module Engine
       end
 
       def bundles_for_corporation(share_holder, corporation, shares: nil)
-        all_bundles_for_corporation(share_holder, corporation, shares)
+        all_bundles_for_corporation(share_holder, corporation, shares: shares)
       end
 
       # Needed for 18MEX
-      def all_bundles_for_corporation(share_holder, corporation, shares)
+      def all_bundles_for_corporation(share_holder, corporation, shares: nil)
         return [] unless corporation.ipoed
 
         shares = (shares || share_holder.shares_of(corporation)).sort_by(&:price)
@@ -761,6 +762,13 @@ module Engine
           depot.depot_trains.any? &&
           (self.class::MUST_BUY_TRAIN == :always ||
            (self.class::MUST_BUY_TRAIN == :route && @graph.route_info(entity)&.dig(:route_train_purchase)))
+      end
+
+      def discard_discount(train, price)
+        return price unless self.class::DISCARDED_TRAIN_DISCOUNT
+        return price unless @depot.discarded.include?(train)
+
+        (price * (100.0 - self.class::DISCARDED_TRAIN_DISCOUNT.to_f) / 100.0).ceil.to_i
       end
 
       def end_game!
