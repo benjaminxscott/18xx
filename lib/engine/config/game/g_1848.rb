@@ -214,18 +214,44 @@ module Engine
       "desc": "Owning Public Company or its Director may build one (1) free tile on a desert hex (marked by a cactus icon). This power does not go away after a 5/5+ train is purchased.",
       "abilities": [
         {
-          "type":"tile_discount",
-          "discount": 40,
-          "terrain": "desert",
+          "type":"tile_lay",
+          "free": true,
           "count": 1,
-          "owner_type": "corporation"
+          "when": "track",
+          "owner_type": "corporation",
+          "hexes": [
+            "B3",
+            "B7",
+            "B9",
+            "C2",
+            "C4",
+            "C8",
+            "E6",
+            "E8"
+          ],
+          "tiles": [
+            "7","8", "9"
+          ]
         },
         {
-          "type":"tile_discount",
-          "discount": 40,
-          "terrain": "desert",
+          "type":"tile_lay",
+          "free": true,
           "count": 1,
-          "owner_type": "player"
+          "when": "track",
+          "owner_type": "player",
+          "hexes": [
+            "B3",
+            "B7",
+            "B9",
+            "C2",
+            "C4",
+            "C8",
+            "E6",
+            "E8"
+          ],
+          "tiles": [
+            "7","8", "9"
+          ]
         }
       ]
     },
