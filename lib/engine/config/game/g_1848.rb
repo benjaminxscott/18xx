@@ -399,73 +399,70 @@ module Engine
   ],
   "trains": [
     {
-      "name": "2",
-      "distance": 2,
-      "price": 100,
-      "rusts_on": "4",
-      "num": 6
-    },
-    {
       "name": "2+",
       "distance": 2,
       "price": 120,
-      "rusts_on": "4",
-      "num": 6
-    },
-    {
-      "name": "3",
-      "distance": 3,
-      "price": 200,
-      "rusts_on": "6",
-      "num": 5
+      "rusts_on": "4+",
+      "num": 6,
+      "variants": [
+         {
+           "name": "2",
+           "price": 100
+         }
+      ]
     },
     {
       "name": "3+",
       "distance": 3,
       "price": 230,
-      "rusts_on": "6",
-      "num": 5
-    },
-    {
-      "name": "4",
-      "distance": 4,
-      "price": 300,
-      "rusts_on": "8",
-      "num": 4
+      "rusts_on": "6+",
+      "num": 5,
+      "variants": [
+         {
+           "name": "3",
+           "price": 200
+         }
+      ]
     },
     {
       "name": "4+",
       "distance": 4,
       "price": 340,
-      "rusts_on": "8",
-      "num": 4
-    },
-    {
-      "name": "5",
-      "distance": 5,
-      "price": 500,
-      "num": 3,
-      "events":[
-        {"type": "close_companies"}
+      "rusts_on": "D",
+      "num": 4,
+      "variants": [
+         {
+           "name": "4",
+           "price": 300
+         }
       ]
     },
     {
       "name": "5+",
       "distance": 5,
       "price": 550,
-      "num": 3
-    },
-    {
-      "name": "6",
-      "distance": 6,
-      "price": 600,
-      "num": 2
+      "num": 3,
+      "variants": [
+         {
+           "name": "5",
+           "price": 500
+         }
+      ],
+      "events":[
+        {"type": "close_companies"}
+      ]
     },
     {
       "name": "6+",
       "distance": 6,
       "price": 660,
-      "num": 2
+      "num": 2,
+      "variants": [
+         {
+           "name": "6",
+           "price": 600
+         }
+      ]
     },
     {
       "name": "D",
@@ -476,19 +473,21 @@ module Engine
         "4": 300,
         "5": 300,
         "6": 300
-      }
-    },
-    {
-      "name": "8",
-      "distance": 8,
-      "price": 800,
-      "num": 6
+      },
+      "variants": [
+         {
+           "name": "8",
+           "distance": 8,
+           "price": 800
+         }
+      ]
     },
     {
       "name": "2E",
       "distance": 2,
       "price": 200,
-      "num": 6
+      "num": 6,
+      "available_on":"5"
     }
   ],
   "hexes": {
@@ -607,7 +606,7 @@ module Engine
     },
     {
       "name": "3",
-      "on": "3",
+      "on": "3, 3+",
       "train_limit": 4,
       "tiles": [
         "yellow",
@@ -620,7 +619,7 @@ module Engine
     },
     {
       "name": "4",
-      "on": "4",
+      "on": "4, 4+",
       "train_limit": 3,
       "tiles": [
         "yellow",
@@ -633,7 +632,7 @@ module Engine
     },
     {
       "name": "5",
-      "on": "5",
+      "on": "5, 5+",
       "train_limit": 2,
       "tiles": [
         "yellow",
@@ -644,7 +643,7 @@ module Engine
     },
     {
       "name": "6",
-      "on": "6",
+      "on": "6, 6+",
       "train_limit": 2,
       "tiles": [
         "yellow",
@@ -655,7 +654,7 @@ module Engine
     },
     {
       "name": "8",
-      "on": "8",
+      "on": "8, D",
       "train_limit": 2,
       "tiles": [
         "yellow",
