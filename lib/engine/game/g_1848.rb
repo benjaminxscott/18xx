@@ -45,6 +45,12 @@ module Engine
           [Step::BuyCompany, blocks: true],
         ], round_num: round_num)
       end
+
+      def upgrades_to?(from, to, _special = false)
+
+        super(from, to, _special, to.cities.size == 1 && %i[yellow].any?(to.color))
+      end
+
     end
   end
 end
