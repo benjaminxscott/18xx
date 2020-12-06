@@ -55,6 +55,14 @@ module Engine
         ], round_num: round_num)
       end
 
+      def setup
+        @companies.each do |company|
+          company.min_price = 1
+          company.max_price = company.value
+        end
+      end
+
+      # TODO: - if hex.label = K, upgrade to K
       def upgrades_to?(from, to)
         # initially blank K hexes can upgrade to regular cities, then reserved K tiles after that
         super(from, to, false, to.cities.size == 1 && %i[yellow].any?(to.color))
