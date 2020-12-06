@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../config/game/g_1848'
+require_relative 'company_price_up_to_face'
 require_relative 'base'
 
 module Engine
@@ -55,13 +56,13 @@ module Engine
         ], round_num: round_num)
       end
 
+      include CompanyPriceUpToFace
+
       def setup
-        @companies.each do |company|
-          company.min_price = 1
-          company.max_price = company.value
-        end
+        setup_company_price_up_to_face
       end
 
+      # TODO: Keep yellow tile labeled as "K" after it's built
       # TODO: - if hex.label = K, upgrade to K
       def upgrades_to?(from, to)
         # initially blank K hexes can upgrade to regular cities, then reserved K tiles after that
