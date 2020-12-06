@@ -632,7 +632,7 @@ module Engine
     },
     {
       "name": "3",
-      "on": "3, 3+",
+      "on": "3+",
       "train_limit": 4,
       "tiles": [
         "yellow",
@@ -640,12 +640,13 @@ module Engine
       ],
       "operating_rounds": 2,
       "status":[
-         "can_buy_companies"
+         "can_buy_companies",
+         "abilities_available"
       ]
     },
     {
       "name": "4",
-      "on": "4, 4+",
+      "on": "4+",
       "train_limit": 3,
       "tiles": [
         "yellow",
@@ -653,34 +654,41 @@ module Engine
       ],
       "operating_rounds": 2,
       "status":[
-         "can_buy_companies"
+         "can_buy_companies",
+         "abilities_available"
       ]
     },
     {
       "name": "5",
-      "on": "5, 5+",
+      "on": "5+",
       "train_limit": 2,
       "tiles": [
         "yellow",
         "green",
         "brown"
       ],
-      "operating_rounds": 3
+      "operating_rounds": 3,
+      "status":[
+         "abilities_available"
+      ]
     },
     {
       "name": "6",
-      "on": "6, 6+",
+      "on": "6+",
       "train_limit": 2,
       "tiles": [
         "yellow",
         "green",
         "brown"
       ],
-      "operating_rounds": 3
+      "operating_rounds": 3,
+      "status":[
+         "abilities_available"
+      ]
     },
     {
       "name": "8",
-      "on": "8, D",
+      "on": "D",
       "train_limit": 2,
       "tiles": [
         "yellow",
@@ -688,7 +696,10 @@ module Engine
         "brown",
         "gray"
       ],
-      "operating_rounds": 3
+      "operating_rounds": 3,
+      "status":[
+         "abilities_available"
+      ]
     }
   ]
 }
