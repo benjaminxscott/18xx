@@ -15,13 +15,22 @@ module Engine
       GAME_PUBLISHER = :oo_games
       GAME_INFO_URL = 'https://github.com/tobymao/18xx/wiki/1848'
 
-      # Two tiles can be laid at a time, with max one upgrade
       TILE_LAYS = [{ lay: true, upgrade: true }, { lay: true, upgrade: :not_if_upgraded }].freeze
 
       DISCARDED_TRAINS = :remove
       CLOSED_CORP_TRAINS = :removed
       SELL_BUY_ORDER = :sell_buy
       SELL_MOVEMENT = :down_block
+
+      CERT_LIMIT = {
+        3 => 20,
+        4 => 17,
+        5 => 14,
+        6 => 12,
+      }.freeze
+
+      STATUS_TEXT = Base::STATUS_TEXT.merge('abilities_available' =>
+        ['Private Abilities Available', 'Private abilities may be used']).freeze
 
       HOME_TOKEN_TIMING = :operate
 
@@ -46,11 +55,10 @@ module Engine
         ], round_num: round_num)
       end
 
-      def upgrades_to?(from, to, _special = false)
-
-        super(from, to, _special, to.cities.size == 1 && %i[yellow].any?(to.color))
+      def upgrades_to?(from, to)
+        # initially blank K hexes can upgrade to regular cities, then reserved K tiles after that
+        super(from, to, false, to.cities.size == 1 && %i[yellow].any?(to.color))
       end
-
     end
   end
 end
