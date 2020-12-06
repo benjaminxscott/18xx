@@ -214,6 +214,28 @@ module Engine
       "desc": "A Public Company who owns this private (or its Director) is entitled to a one-time discount of £40 when placing a tile on any desert hex marked by a cactus icon. This power does not go away after a 5/5+ train is purchased.",
       "abilities": [
         {
+          "type": "close",
+          "when": "never",
+          "owner_type": "player"
+        },
+        {
+          "type": "close",
+          "when": "never",
+          "owner_type": "corporation"
+        },
+        {
+          "type": "revenue_change",
+          "revenue": 0,
+          "when": "5",
+          "owner_type": "player"
+        },
+        {
+          "type": "revenue_change",
+          "revenue": 0,
+          "when": "5",
+          "owner_type": "corporation"
+        },
+        {
           "type":"tile_lay",
           "free": true,
           "count": 1,
@@ -269,7 +291,31 @@ module Engine
       "value": 220,
       "discount": 50,
       "revenue": 20,
-      "desc": "Owning Public Company or its Director may receive a one-time discount of £100 on the purchase of a 2E (Ghan) train. This power does not go away after a 5/5+ train is purchased."
+      "desc": "Owning Public Company or its Director may receive a one-time discount of £100 on the purchase of a 2E (Ghan) train. This power does not go away after a 5/5+ train is purchased.",
+      "abilities": [
+        {
+          "type": "close",
+          "when": "never",
+          "owner_type": "player"
+        },
+        {
+          "type": "close",
+          "when": "never",
+          "owner_type": "corporation"
+        },
+        {
+          "type": "revenue_change",
+          "revenue": 0,
+          "when": "5",
+          "owner_type": "player"
+        },
+        {
+          "type": "revenue_change",
+          "revenue": 0,
+          "when": "5",
+          "owner_type": "corporation"
+        }
+      ]
     },
     {
       "sym": "P5",

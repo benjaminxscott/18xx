@@ -30,7 +30,7 @@ module Engine
       }.freeze
 
       STATUS_TEXT = Base::STATUS_TEXT.merge('abilities_available' =>
-        ['Private Abilities Available', 'Private abilities may be used']).freeze
+        ['Can Use Private Abilities', 'Private abilities may be used by owning corporation or player Director']).freeze
 
       HOME_TOKEN_TIMING = :operate
 
