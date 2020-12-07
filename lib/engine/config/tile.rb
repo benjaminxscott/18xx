@@ -13,7 +13,9 @@ module Engine
         'town' => 'town=revenue:0',
       }.freeze
 
-      BLUE = {}.freeze
+      BLUE = {
+        '241' => 'offboard=revenue:50;path=a:5,b:_0;path=a:0,b:_0',
+      }.freeze
       RED = {}.freeze
 
       YELLOW = {
