@@ -479,7 +479,7 @@ module Engine
                "city",
                "offboard"
             ],
-            "pay":2,
+            "pay":4,
             "visit":2
          },
          {
@@ -508,7 +508,7 @@ module Engine
                "city",
                "offboard"
             ],
-            "pay":3,
+            "pay":5,
             "visit":3
          },
          {
@@ -537,7 +537,7 @@ module Engine
                "city",
                "offboard"
             ],
-            "pay":4,
+            "pay":6,
             "visit":4
          },
          {
@@ -566,7 +566,7 @@ module Engine
                "city",
                "offboard"
             ],
-            "pay":5,
+            "pay":7,
             "visit":5
          },
          {
@@ -597,7 +597,7 @@ module Engine
                "city",
                "offboard"
             ],
-            "pay":6,
+            "pay":8,
             "visit":6
          },
          {
@@ -636,7 +636,7 @@ module Engine
                     "city",
                     "offboard"
                  ],
-                 "pay":8,
+                 "pay":10,
                  "visit":8
               },
               {
@@ -675,10 +675,10 @@ module Engine
       ]
     },
     "blue": {
-      "offboard=revenue:yellow_10|green_10|brown_20|gray_20;path=a:0,b:_0": [
+      "offboard=revenue:yellow_10|green_10|brown_20|gray_20,visit_cost:0;path=a:0,b:_0": [
         "B21"
       ],
-      "offboard=revenue:yellow_10|green_10|brown_20|gray_20;path=a:2,b:_0": [
+      "offboard=revenue:yellow_10|green_10|brown_20|gray_20,visit_cost:0;path=a:2,b:_0": [
         "F3"
       ],
       "": [
