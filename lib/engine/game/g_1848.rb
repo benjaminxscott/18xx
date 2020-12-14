@@ -33,6 +33,8 @@ module Engine
       STATUS_TEXT = Base::STATUS_TEXT.merge('abilities_available' =>
         ['Can Use Private Abilities', 'Private abilities may be used by owning corporation or player Director']).freeze
 
+      CERT_LIMIT_INCLUDES_PRIVATES = false
+
       HOME_TOKEN_TIMING = :operate
 
       def new_auction_round
