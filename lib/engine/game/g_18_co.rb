@@ -31,18 +31,21 @@ module Engine
 
       SELL_BUY_ORDER = :sell_buy
       MUST_EMERGENCY_ISSUE_BEFORE_EBUY = true
+      MUST_BID_INCREMENT_MULTIPLE = true
+      ONLY_HIGHEST_BID_COMMITTED = false
 
       CORPORATE_BUY_SHARE_SINGLE_CORP_ONLY = true
       CORPORATE_BUY_SHARE_ALLOW_BUY_FROM_PRESIDENT = true
       DISCARDED_TRAIN_DISCOUNT = 50
 
       # Two tiles can be laid, only one upgrade
-      # TODO: This changes in phase E to a single tile lay
       TILE_LAYS = [{ lay: true, upgrade: true }, { lay: true, upgrade: false }].freeze
+      REDUCED_TILE_LAYS = [{ lay: true, upgrade: true }].freeze
 
       # First 3 are Denver, Second 3 are CO Springs
       TILES_FIXED_ROTATION = %w[co1 co2 co3 co5 co6 co7].freeze
       GREEN_TOWN_TILES = %w[co8 co9 co10].freeze
+      GREEN_CITY_TILES = %w[14 15].freeze
       BROWN_CITY_TILES = %w[co4 63].freeze
 
       STOCKMARKET_COLORS = {
@@ -84,6 +87,10 @@ module Engine
           'remove_mines' => ['Mines Close', 'Mine tokens removed from board and corporations']
         ).freeze
 
+      STATUS_TEXT = Base::STATUS_TEXT.merge(
+        'reduced_tile_lay' => ['Reduced Tile Lay', 'Corporations place only one tile per OR.']
+      ).freeze
+
       include CompanyPrice50To150Percent
 
       def ipo_name(_entity = nil)
@@ -92,6 +99,10 @@ module Engine
 
       def dsng
         @dsng ||= corporation_by_id('DSNG')
+      end
+
+      def drgr
+        @drgr ||= company_by_id('DRGR')
       end
 
       def imc
@@ -140,8 +151,12 @@ module Engine
         end
       end
 
+      def mines_add(entity, count)
+        mine_create(entity, mines_count(entity) + count)
+      end
+
       def mine_add(entity)
-        mine_create(entity, mines_count(entity) + 1)
+        mines_add(entity, 1)
       end
 
       def mine_update_text(entity)
@@ -166,16 +181,20 @@ module Engine
       def operating_round(round_num)
         Round::Operating.new(self, [
         Step::Bankrupt,
+        Step::G18CO::Takeover,
         Step::DiscardTrain,
         Step::HomeToken,
+        Step::G18CO::ReturnToken,
         Step::BuyCompany,
         Step::G18CO::RedeemShares,
         Step::CorporateBuyShares,
+        Step::G18CO::SpecialTrack,
         Step::G18CO::Track,
         Step::Token,
         Step::Route,
         Step::G18CO::Dividend,
         Step::BuyTrain,
+        Step::CorporateSellShares,
         Step::G18CO::IssueShares,
         [Step::BuyCompany, blocks: true],
         ], round_num: round_num)
@@ -183,6 +202,7 @@ module Engine
 
       def stock_round
         Round::Stock.new(self, [
+        Step::G18CO::Takeover,
         Step::DiscardTrain,
         Step::G18CO::BuySellParShares,
         ])
@@ -191,7 +211,7 @@ module Engine
       def new_auction_round
         Round::Auction.new(self, [
           Step::G18CO::CompanyPendingPar,
-          Step::WaterfallAuction,
+          Step::G18CO::MovingBidAuction,
         ])
       end
 
@@ -253,6 +273,8 @@ module Engine
       end
 
       def upgrades_to?(from, to, special = false)
+        return true if special && from.hex.tile.color == :yellow && GREEN_CITY_TILES.include?(to.name)
+
         # Green towns can't be upgraded to brown cities unless the hex has the upgrade icon
         if GREEN_TOWN_TILES.include?(from.hex.tile.name)
           return BROWN_CITY_TILES.include?(to.name) if from.hex.tile.icons.any? { |icon| icon.name == 'upgrade' }
@@ -288,6 +310,12 @@ module Engine
         @corporations.each do |corporation|
           mines_remove(corporation)
         end
+      end
+
+      def tile_lays(_entity)
+        return REDUCED_TILE_LAYS if @phase.status.include?('reduced_tile_lay')
+
+        super
       end
 
       def sell_shares_and_change_price(bundle)
@@ -347,6 +375,14 @@ module Engine
 
         bundles_for_corporation(share_pool, entity)
           .reject { |bundle| entity.cash < bundle.price }
+      end
+
+      def purchasable_companies(entity = nil)
+        @companies.select do |company|
+          (company.owner&.player? || company.owner.nil?) &&
+            (entity.nil? || entity != company.owner) &&
+            !company.abilities(:no_buy)
+        end
       end
     end
   end

@@ -30,6 +30,10 @@ module Engine
       SELL_AFTER = :any_time
       SELL_BUY_ORDER = :sell_buy
       MARKET_SHARE_LIMIT = 100
+      TRAIN_PRICE_MIN = 10
+      TRAIN_PRICE_MULTIPLE = 10
+
+      SOLD_OUT_INCREASE = false
 
       STOCKMARKET_COLORS = {
         par: :yellow,
@@ -44,6 +48,16 @@ module Engine
         acquisition: :yellow,
         safe_par: :white,
       }.freeze
+
+      MARKET_TEXT = { par: 'Par values (varies by corporation)',
+                      no_cert_limit: 'UNUSED',
+                      unlimited: 'UNUSED',
+                      multiple_buy: 'UNUSED',
+                      close: 'Corporation bankrupts',
+                      endgame: 'End game trigger',
+                      liquidation: 'UNUSED',
+                      repar: 'Par values after bankruptcy (varies by corporation)',
+                      ignore_one_sale: 'Ignore first share sold when moving price' }.freeze
 
       HALT_SUBSIDY = 10
 
@@ -97,7 +111,6 @@ module Engine
 
       def setup
         @bankrupt_corps = []
-        @receivership_corps = []
         @insolvent_corps = []
         @closed_corps = []
         @highest_layer = 1
@@ -109,6 +122,10 @@ module Engine
         reserve_share('FYN')
         reserve_share('C&N')
         reserve_share('IOW')
+      end
+
+      def share_prices
+        repar_prices
       end
 
       def reserve_share(name)
@@ -175,16 +192,100 @@ module Engine
         @log << "#{ffc.name} is now available for purchase from the Bank"
       end
 
-      def corp_bankrupt?(corp)
+      def insolvent?(corp)
+        @insolvent_corps.include?(corp)
+      end
+
+      def make_insolvent(corp)
+        return if insolvent?(corp)
+
+        @insolvent_corps << corp
+        @log << "#{corp.name} is now Insolvent"
+      end
+
+      def clear_insolvent(corp)
+        return unless insolvent?(corp)
+
+        @insolvent_corps.delete(corp)
+        @log << "#{corp.name} is no longer Insolvent"
+      end
+
+      def bankrupt?(corp)
         @bankrupt_corps.include?(corp)
       end
 
+      def make_bankrupt!(corp)
+        return if bankrupt?(corp)
+
+        @bankrupt_corps << corp
+        @log << "#{corp.name} enters Bankruptcy"
+
+        # un-IPO the corporation
+        corp.share_price.corporations.delete(corp)
+        corp.share_price = nil
+        corp.par_price = nil
+        corp.ipoed = false
+        corp.unfloat!
+
+        # return shares to IPO
+        corp.share_holders.keys.each do |share_holder|
+          next if share_holder == corp
+
+          shares = share_holder.shares_by_corporation[corp].compact
+          corp.share_holders.delete(share_holder)
+          shares.each do |share|
+            share_holder.shares_by_corporation[corp].delete(share)
+            share.owner = corp
+            corp.shares_by_corporation[corp] << share
+          end
+        end
+        corp.shares_by_corporation[corp].sort_by!(&:index)
+        corp.share_holders[corp] = 100
+        corp.owner = nil
+
+        # "flip" any tokens for corporation placed on map
+        corp.tokens.each do |token|
+          token.status = :flipped if token.used
+        end
+
+        # find new priority deal: player with lowest total share count
+        @players.rotate!(@players.index(priority_deal_player))
+        player = @players.min_by { |p| p.shares.sum(&:percent) }
+        @players.rotate!(@players.index(player))
+        @log << "#{@players.first.name} has priority deal"
+
+        # restart stock round if in middle of one
+        return unless @round.class == Round::Stock
+
+        @log << 'Restarting Stock Round'
+        @round.entities.each(&:unpass!)
+        @round = stock_round
+      end
+
+      def clear_bankrupt!(corp)
+        return unless bankrupt?(corp)
+
+        # Designer says that bankrupt corps keep insolvency flag
+
+        # "unflip" any tokens for corporation placed on map
+        corp.tokens.each do |token|
+          token.status = nil if token.used
+        end
+        @bankrupt_corps.delete(corp)
+      end
+
+      def status_str(corp)
+        status = 'Insolvent' if insolvent?(corp)
+        status = status ? status + ', Bankrupt' : 'Bankrupt' if bankrupt?(corp)
+        status
+      end
+
       def corp_hi_par(corp)
-        (corp_bankrupt?(corp) ? REPAR_RANGE[corp_layer(corp)] : PAR_RANGE[corp_layer(corp)]).last
+        (bankrupt?(corp) ? REPAR_RANGE[corp_layer(corp)] : PAR_RANGE[corp_layer(corp)]).last
       end
 
       def corp_lo_par(corp)
-        (corp_bankrupt?(corp) ? REPAR_RANGE[corp_layer(corp)] : PAR_RANGE[corp_layer(corp)]).first
+        (bankrupt?(corp) ? REPAR_RANGE[corp_layer(corp)] : PAR_RANGE[corp_layer(corp)]).first
       end
 
       def corp_layer(corp)
@@ -192,7 +293,7 @@ module Engine
       end
 
       def par_prices(corp)
-        par_prices = corp_bankrupt?(corp) ? repar_prices : stock_market.par_prices
+        par_prices = bankrupt?(corp) ? repar_prices : stock_market.par_prices
         par_prices.select { |p| p.price <= corp_hi_par(corp) && p.price >= corp_lo_par(corp) }
       end
 
@@ -216,6 +317,17 @@ module Engine
           corp.num_ipo_shares.zero? || corp.operated?
         end.values
         layers.empty? ? 1 : layers.max + 1
+      end
+
+      def float_corporation(corporation)
+        clear_bankrupt!(corporation)
+        super
+      end
+
+      def action_processed(_action)
+        @corporations.each do |corporation|
+          make_bankrupt!(corporation) if corporation.share_price&.type == :close
+        end
       end
 
       def sorted_corporations
@@ -250,6 +362,11 @@ module Engine
         bundles
       end
 
+      def selling_movement?(corporation)
+        # FIXME: no price movement on selling after 8 train
+        corporation.operated?
+      end
+
       def sell_shares_and_change_price(bundle, allow_president_change: true, swap: nil)
         corporation = bundle.corporation
         price = corporation.share_price.price
@@ -257,7 +374,7 @@ module Engine
         @share_pool.sell_shares(bundle, allow_president_change: allow_president_change, swap: swap)
         num_shares = bundle.num_shares
         num_shares -= 1 if corporation.share_price.type == :ignore_one_sale
-        num_shares.times { @stock_market.move_left(corporation) }
+        num_shares.times { @stock_market.move_left(corporation) } if selling_movement?(corporation)
         log_share_price(corporation, price)
       end
 
@@ -267,6 +384,33 @@ module Engine
         @corporations.each { |corp| corp.shares.each { |share| share.buyable = true } }
         @companies.reject { |c| c == company }.each(&:close!)
         @log << '-- Event: starting private companies close --'
+      end
+
+      def train_help(trains)
+        help = []
+
+        if trains.select { |t| t.owner == @depot }.any?
+          help << 'Leased trains ignore town/halt allowance.'
+          help << "Revenue = #{format_currency(40)} + number_of_stops * #{format_currency(20)}"
+        end
+
+        help
+      end
+
+      def train_owner(train)
+        train.owner == @depot ? lessee : train.owner
+      end
+
+      def lessee
+        current_entity
+      end
+
+      def route_trains(entity)
+        if insolvent?(entity)
+          [@depot.min_depot_train]
+        else
+          super
+        end
       end
 
       def biggest_train(corporation)
@@ -384,6 +528,55 @@ module Engine
         @hex_distances[corporation] = h_distances
       end
 
+      # needed for custom_node_walk
+      def custom_node_select(node, paths, corporation: nil)
+        on = paths.map { |p| [p, 0] }.to_h
+
+        custom_node_walk(node, on: on, corporation: corporation) do |path|
+          on[path] = 1 if on[path]
+        end
+
+        on.keys.select { |p| on[p] == 1 }
+      end
+
+      # needed for custom_blocks?
+      def custom_node_walk(node, visited: nil, on: nil, corporation: nil, visited_paths: {})
+        return if visited&.[](node)
+
+        visited = visited&.dup || {}
+        visited[node] = true
+
+        node.paths.each do |node_path|
+          node_path.walk(visited: visited_paths, on: on) do |path, vp|
+            yield path
+            path.nodes.each do |next_node|
+              next if next_node == node
+              next if corporation && custom_blocks?(next_node, corporation)
+              next if path.terminal?
+
+              custom_node_walk(
+                next_node,
+                visited: visited,
+                on: on,
+                corporation: corporation,
+                visited_paths: visited_paths.merge(vp),
+              ) { |p| yield p }
+            end
+          end
+        end
+      end
+
+      # needed for :flipped check
+      def custom_blocks?(node, corporation)
+        return false unless node.city?
+        return false unless corporation
+        return false if node.tokened_by?(corporation)
+        return false if node.tokens.include?(nil)
+        return false if node.tokens.any? { |t| t&.type == :neutral || t&.status == :flipped }
+
+        true
+      end
+
       def legal_tile_rotation?(_entity, _hex, tile)
         return true unless NO_ROTATION_TILES.include?(tile.name)
 
@@ -443,7 +636,7 @@ module Engine
         if visits.size > 2
           corporation = route.corporation
           visits[1..-2].each do |node|
-            if node.city? && node.blocks?(corporation)
+            if node.city? && custom_blocks?(node, corporation)
               game_error('Route can only bypass one tokened-out city') if blocked
               blocked = node
             end
@@ -452,7 +645,9 @@ module Engine
 
         paths_ = route.paths.uniq
         token = blocked if blocked
-        game_error('Route is not connected') if token.select(paths_, corporation: route.corporation).size != paths_.size
+        if custom_node_select(token, paths_, corporation: route.corporation).size != paths_.size
+          game_error('Route is not connected')
+        end
 
         return unless blocked && route.routes.any? { |r| r != route && tokened_out?(r) }
 
@@ -481,10 +676,23 @@ module Engine
         check_hex_reentry(route)
       end
 
-      def max_halts(route)
+      def ignore_halts?
+        false
+      end
+
+      def ignore_halt_subsidies?(route)
         # FIXME: need to ignore halts after formation of Southern Railway
+        route.train.owner == @depot
+      end
+
+      def ignore_second_allowance?(route)
+        # FIXME: need to add Nationalization
+        route.train.owner == @depot
+      end
+
+      def max_halts(route)
         visits = route.visited_stops
-        return 0 if visits.empty?
+        return 0 if visits.empty? || ignore_halts?
 
         cities = visits.select { |node| node.city? || node.offboard? }
         halts = visits.select(&:halt?)
@@ -493,7 +701,6 @@ module Engine
       end
 
       def compute_stops(route)
-        # FIXME: need to ignore halts after formation of Southern Railway
         # will need to be modifed for original rules option
         visits = route.visited_stops
         return [] if visits.empty?
@@ -503,10 +710,17 @@ module Engine
 
         # in 1860, unused city/offboard allowance can be used for towns/halts
         c_allowance = route.train.distance[0]['pay']
-        th_allowance = route.train.distance[-1]['pay'] + c_allowance - stops.size
+        th_allowance = if !ignore_second_allowance?(route)
+                         route.train.distance[-1]['pay'] + c_allowance - stops.size
+                       else
+                         c_allowance - stops.size
+                       end
 
-        # add in halts requested
+        # add in halts requested (should be 0 for leased train)
         halts = visits.select(&:halt?)
+
+        route.halts = nil if halts.empty? || ignore_halts? || ignore_halt_subsidies?(route)
+
         num_halts = [halts.size, (route.halts || 0)].min
         if num_halts.positive?
           stops.concat(halts.take(num_halts))
@@ -527,23 +741,33 @@ module Engine
           stops.concat(halts.take(num_halts))
         end
 
-        route.halts = num_halts if halts.any?
+        # update route halts
+        route.halts = num_halts if halts.any? && !ignore_halts? && !ignore_halt_subsidies?(route)
 
         stops
       end
 
       def route_distance(route)
         n_cities = route.stops.select { |n| n.city? || n.offboard? }.size
-        n_towns = route.stops.select { |n| n.town? && !n.halt? }.size
+        # halts are treated like towns for leased trains
+        n_towns = if route.train.owner != @depot
+                    route.stops.count { |n| n.town? && !n.halt? }
+                  else
+                    route.stops.count(&:town?)
+                  end
         "#{n_cities}+#{n_towns}"
       end
 
       def revenue_for(route, stops)
-        stops.sum { |stop| stop.route_base_revenue(route.phase, route.train) }
+        if route.train.owner != @depot
+          stops.sum { |stop| stop.route_base_revenue(route.phase, route.train) }
+        else
+          40 + 20 * stops.size
+        end
       end
 
-      def subsidy_for(_route, stops)
-        stops.select(&:halt?).size * HALT_SUBSIDY
+      def subsidy_for(route, stops)
+        route.train.owner != @depot ? stops.count(&:halt?) * HALT_SUBSIDY : 0
       end
 
       def routes_revenue(routes)

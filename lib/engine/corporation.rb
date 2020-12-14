@@ -24,7 +24,7 @@ module Engine
     include Spender
     include Transfer
 
-    attr_accessor :ipoed, :par_via_exchange, :max_ownership_percent, :float_percent, :capitalization
+    attr_accessor :ipoed, :par_via_exchange, :max_ownership_percent, :float_percent, :capitalization, :max_share_price
     attr_reader :companies, :min_price, :name, :full_name, :fraction_shares, :type
     attr_writer :par_price, :share_price
 
@@ -163,6 +163,10 @@ module Engine
 
     def percent_to_float
       @floated ? 0 : percent_of(self) - (100 - @float_percent)
+    end
+
+    def unfloat!
+      @floated = false
     end
 
     def corporation?

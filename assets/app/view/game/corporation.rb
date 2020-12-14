@@ -87,6 +87,21 @@ module View
           children << h(:div, props, subchildren)
         end
 
+        status_props = {
+          style: {
+            grid: '1fr / repeat(2, max-content)',
+            gap: '2rem',
+            justifyContent: 'center',
+            backgroundColor: color_for(:bg2),
+            color: color_for(:font2),
+          },
+        }
+
+        if @corporation.trains.any? && !@corporation.floated?
+          children << h(:div, status_props, @game.float_str(@corporation))
+        end
+        children << h(:div, status_props, render_status) if @game.status_str(@corporation)
+
         h('div.corp.card', { style: card_style, on: { click: select_corporation } }, children)
       end
 
@@ -152,7 +167,7 @@ module View
         }
 
         holdings =
-          if !@corporation.corporation? || @corporation.floated?
+          if !@corporation.corporation? || @corporation.floated? || @corporation.trains.any?
             h(:div, holdings_props, [render_trains, render_cash])
           elsif @corporation.cash.positive?
             h(:div, holdings_props, [render_to_float, render_cash])
@@ -189,12 +204,17 @@ module View
             grid: '25px auto / 1fr',
           },
         }
+
         value_props = {
           style: {
             maxWidth: '7.5rem',
             fontWeight: 'bold',
           },
         }
+
+        value_props[:style].merge!(fontSize: 'small') if value.size > 6
+        value_props[:style].merge!(fontSize: 'x-small') if value.size > 10
+
         key_props = {
           style: {
             alignSelf: 'end',
@@ -439,6 +459,12 @@ module View
           'Last Run: ',
           h('span.bold', @game.format_currency(last_run)),
         ])
+      end
+
+      def render_status
+        [h(:div, { style: { display: 'inline' } }, [
+          h('span.bold', @game.status_str(@corporation)),
+        ])]
       end
 
       def render_operating_order

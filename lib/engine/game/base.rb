@@ -92,6 +92,7 @@ module Engine
       CERT_LIMIT_TYPES = %i[multiple_buy unlimited no_cert_limit].freeze
       # Does the cert limit decrease when a player becomes bankrupt?
       CERT_LIMIT_CHANGE_ON_BANKRUPTCY = false
+      CERT_LIMIT_INCLUDES_PRIVATES = true
 
       MULTIPLE_BUY_TYPES = %i[multiple_buy].freeze
 
@@ -140,6 +141,9 @@ module Engine
       # do shares in the pool drop the price?
       # none, one, each
       POOL_SHARE_DROP = :none
+
+      # do sold out shares increase the price?
+      SOLD_OUT_INCREASE = true
 
       # :after_last_to_act -- player after the last to act goes first. Order remains the same.
       # :first_to_pass -- players ordered by when they first started passing.
@@ -596,6 +600,14 @@ module Engine
         @depot.trains
       end
 
+      def train_owner(train)
+        train.owner
+      end
+
+      def route_trains(entity)
+        entity.runnable_trains
+      end
+
       # Before rusting, check if this train individual should rust.
       def rust?(_train)
         true
@@ -715,7 +727,11 @@ module Engine
       end
 
       def num_certs(entity)
-        entity.companies.size + entity.shares.count { |s| s.corporation.counts_for_limit && s.counts_for_limit }
+        if self.class::CERT_LIMIT_INCLUDES_PRIVATES
+          entity.companies.size + entity.shares.count { |s| s.corporation.counts_for_limit && s.counts_for_limit }
+        else
+          entity.shares.count { |s| s.corporation.counts_for_limit && s.counts_for_limit }
+        end
       end
 
       def sellable_turn?
@@ -788,7 +804,7 @@ module Engine
       end
 
       def float_str(entity)
-        "#{entity.percent_to_float}% to float"
+        "#{entity.percent_to_float}% to float" if entity.corporation?
       end
 
       def route_distance(route)
@@ -801,6 +817,10 @@ module Engine
 
       def compute_other_paths(routes, route)
         routes.reject { |r| r == route }.flat_map(&:paths)
+      end
+
+      def city_tokened_by?(city, entity)
+        city.tokened_by?(entity)
       end
 
       def check_overlap(routes)
@@ -832,12 +852,8 @@ module Engine
 
       def check_connected(route, token)
         paths_ = route.paths.uniq
-
-        # rubocop:disable Style/GuardClause, Style/IfUnlessModifier
-        if token.select(paths_, corporation: route.corporation).size != paths_.size
-          game_error('Route is not connected')
-        end
-        # rubocop:enable Style/GuardClause, Style/IfUnlessModifier
+        game_error('Route is not connected') if token.select(paths_, corporation: route.corporation).size != paths_.size
+        # rubocop:enable
       end
 
       def check_distance(route, visits)
@@ -1118,7 +1134,7 @@ module Engine
           end
 
           @share_pool.shares_by_corporation.delete(corporation)
-          corporation.share_price.corporations.delete(corporation)
+          corporation.share_price&.corporations&.delete(corporation)
           @corporations.delete(corporation)
         else
           @minors.delete(corporation)
@@ -1696,7 +1712,7 @@ module Engine
         @players.any?(&:bankrupt)
       end
 
-      def all_potential_upgrades(tile, tile_manifest: false) # rubocop:disable Lint/UnusedMethodArgument
+      def all_potential_upgrades(tile, tile_manifest: false)
         colors = Array(@phase.phases.last[:tiles])
         @all_tiles
           .select { |t| colors.include?(t.color) }
@@ -1740,6 +1756,8 @@ module Engine
       def show_corporation_size?(_entity)
         false
       end
+
+      def status_str(_corporation); end
 
       # Override this, and add elements (paragraphs of text) here to display it on Info page.
       def timeline
