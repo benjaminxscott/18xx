@@ -92,6 +92,7 @@ module Engine
       CERT_LIMIT_TYPES = %i[multiple_buy unlimited no_cert_limit].freeze
       # Does the cert limit decrease when a player becomes bankrupt?
       CERT_LIMIT_CHANGE_ON_BANKRUPTCY = false
+      CERT_LIMIT_INCLUDES_PRIVATES = true
 
       MULTIPLE_BUY_TYPES = %i[multiple_buy].freeze
 
@@ -726,7 +727,11 @@ module Engine
       end
 
       def num_certs(entity)
-        entity.companies.size + entity.shares.count { |s| s.corporation.counts_for_limit && s.counts_for_limit }
+        if self.class::CERT_LIMIT_INCLUDES_PRIVATES
+          entity.companies.size + entity.shares.count { |s| s.corporation.counts_for_limit && s.counts_for_limit }
+        else
+          entity.shares.count { |s| s.corporation.counts_for_limit && s.counts_for_limit }
+        end
       end
 
       def sellable_turn?
@@ -847,12 +852,8 @@ module Engine
 
       def check_connected(route, token)
         paths_ = route.paths.uniq
-
-        # rubocop:disable Style/GuardClause, Style/IfUnlessModifier
-        if token.select(paths_, corporation: route.corporation).size != paths_.size
-          game_error('Route is not connected')
-        end
-        # rubocop:enable Style/GuardClause, Style/IfUnlessModifier
+        game_error('Route is not connected') if token.select(paths_, corporation: route.corporation).size != paths_.size
+        # rubocop:enable
       end
 
       def check_distance(route, visits)
@@ -1711,7 +1712,7 @@ module Engine
         @players.any?(&:bankrupt)
       end
 
-      def all_potential_upgrades(tile, tile_manifest: false) # rubocop:disable Lint/UnusedMethodArgument
+      def all_potential_upgrades(tile, tile_manifest: false)
         colors = Array(@phase.phases.last[:tiles])
         @all_tiles
           .select { |t| colors.include?(t.color) }
