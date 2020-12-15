@@ -1083,6 +1083,7 @@ module Engine
         # - TODO: account for games that allow double dits to upgrade to one town
         return false if from.towns.size != to.towns.size
         return false if !from.label && from.cities.size != to.cities.size
+        return false if from.color == :white and from.label == Engine::Part::Label.new('OO') && from.cities.size != to.cities.size
 
         true
       end
