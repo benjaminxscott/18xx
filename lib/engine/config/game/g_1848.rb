@@ -726,7 +726,7 @@ module Engine
         "F9",
         "G8"
       ],
-      "city=revenue:0;city=revenue:0": [
+      "city=revenue:0;city=revenue:0;label=OO": [
         "B17",
         "G10"
       ],
@@ -752,7 +752,7 @@ module Engine
         "F5",
         "E2"
       ],
-      "city=revenue:0;city=revenue:0;upgrade=cost:50,terrain:mountain": [
+      "city=revenue:0;city=revenue:0;upgrade=cost:50,terrain:mountain;label=OO": [
         "F15"
       ],
       "town=revenue:0;town=revenue:0": [
