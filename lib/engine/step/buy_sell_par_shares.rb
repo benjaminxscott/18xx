@@ -2,7 +2,7 @@
 
 require_relative 'base'
 require_relative 'share_buying'
-require_relative '../action/buy_company.rb'
+require_relative '../action/buy_company'
 require_relative '../action/buy_shares'
 require_relative '../action/par'
 
@@ -20,15 +20,16 @@ module Engine
         actions = []
         actions << 'buy_shares' if can_buy_any?(entity)
         actions << 'par' if can_ipo_any?(entity)
-        actions << 'buy_company' if purchasable_companies(entity).any?
+        actions << 'buy_company' unless purchasable_companies(entity).empty?
         actions << 'sell_shares' if can_sell_any?(entity)
 
-        actions << 'pass' if actions.any?
+        actions << 'pass' unless actions.empty?
         actions
       end
 
       def log_pass(entity)
         return @log << "#{entity.name} passes" if @current_actions.empty?
+        return if bought? && sold?
 
         action = bought? ? 'to sell' : 'to buy'
         @log << "#{entity.name} declines #{action} shares"
@@ -85,6 +86,8 @@ module Engine
       end
 
       def must_sell?(entity)
+        return false if @game.can_hold_above_limit?(entity)
+
         @game.num_certs(entity) > @game.cert_limit ||
           !@game.corporations.all? { |corp| corp.holding_ok?(entity) }
       end
@@ -94,19 +97,7 @@ module Engine
 
         corporation = bundle.corporation
 
-        timing =
-          case @game.class::SELL_AFTER
-          when :first
-            @game.turn > 1
-          when :operate
-            corporation.operated?
-          when :p_any_operate
-            corporation.operated? || corporation.president?(entity)
-          when :any_time
-            true
-          else
-            raise NotImplementedError
-          end
+        timing = @game.check_sale_timing(entity, corporation)
 
         timing &&
           !(@game.class::MUST_SELL_IN_BLOCKS && @round.players_sold[entity][corporation] == :now) &&
@@ -147,7 +138,7 @@ module Engine
         share_price = action.share_price
         corporation = action.corporation
         entity = action.entity
-        @game.game_error("#{corporation} cannot be parred") unless corporation.can_par?(entity)
+        raise GameError, "#{corporation.name} cannot be parred" unless @game.can_par?(corporation, entity)
 
         @game.stock_market.set_par(corporation, share_price)
         share = corporation.shares.first
@@ -195,7 +186,9 @@ module Engine
       end
 
       def can_ipo_any?(entity)
-        !bought? && @game.corporations.any? { |c| c.can_par?(entity) && can_buy?(entity, c.shares.first&.to_bundle) }
+        !bought? && @game.corporations.any? do |c|
+          @game.can_par?(c, entity) && can_buy?(entity, c.shares.first&.to_bundle)
+        end
       end
 
       def ipo_type(_entity)
@@ -210,6 +203,10 @@ module Engine
         @game.purchasable_companies(entity)
       end
 
+      def purchasable_unsold_companies
+        @game.companies.reject(&:owner).reject(&:closed?)
+      end
+
       def get_par_prices(entity, _corp)
         @game
           .stock_market
@@ -218,7 +215,7 @@ module Engine
       end
 
       def sell_shares(entity, shares, swap: nil)
-        @game.game_error("Cannot sell shares of #{shares.corporation.name}") if !can_sell?(entity, shares) && !swap
+        raise GameError, "Cannot sell shares of #{shares.corporation.name}" if !can_sell?(entity, shares) && !swap
 
         @round.players_sold[shares.owner][shares.corporation] = :now
         @game.sell_shares_and_change_price(shares, swap: swap)
@@ -228,21 +225,26 @@ module Engine
         @current_actions.any? { |x| self.class::PURCHASE_ACTIONS.include?(x.class) }
       end
 
+      def sold?
+        @current_actions.any? { |x| x.instance_of?(Action::SellShares) }
+      end
+
       def process_buy_company(action)
         entity = action.entity
         company = action.company
         price = action.price
         owner = company.owner
 
-        @game.game_error("Cannot buy #{company.name} from #{owner.name}") unless owner.player?
+        raise GameError, "Cannot buy #{company.name} from #{owner.name}" if owner&.corporation?
 
         company.owner = entity
-        owner.companies.delete(company)
+        owner&.companies&.delete(company)
 
         entity.companies << company
-        entity.spend(price, owner)
+        entity.spend(price, owner.nil? ? @game.bank : owner)
         @current_actions << action
-        @log << "-- #{entity.name} buys #{company.name} from #{owner.name} for #{@game.format_currency(price)}"
+        @log << "#{owner ? '-- ' : ''}#{entity.name} buys #{company.name} from "\
+                "#{owner ? owner.name : 'the market'} for #{@game.format_currency(price)}"
       end
     end
   end

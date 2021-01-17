@@ -264,28 +264,103 @@ module Engine
       "sym": "FT",
       "value": 20,
       "revenue": 5,
-      "desc": "No special abilities."
+      "desc": "No special abilities.",
+      "abilities": [
+        {
+          "type": "blocks_hexes",
+          "owner_type": "player",
+          "hexes": [
+            "L3"
+          ]
+        }
+      ]
     },
     {
       "name": "Waterloo & Saugeen Railway Co.",
       "sym": "WSRC",
       "value": 40,
       "revenue": 10,
-      "desc": "The public company that owns this private company may place a free station marker and green #59 tile on the Kitchener hex (I12). This action closes the private company."
+      "desc": "The public company that owns this private company may place a free station marker and green #59 tile on the Kitchener hex (I12). This action closes the private company.",
+      "abilities":[
+         {
+            "type":"blocks_hexes",
+            "owner_type":"player",
+            "hexes":[
+               "I12"
+            ]
+         },
+         {
+            "type":"teleport",
+            "owner_type":"corporation",
+            "hexes":[
+               "I12"
+            ],
+             "tiles": [
+               "59"
+             ]
+         }
+      ]
     },
     {
       "name": "The Canada Company",
       "sym": "TCC",
       "value": 50,
       "revenue": 10,
-      "desc": "During its operating turn, the public company owning this private company may place a track tile in the hex occupied by this private company (H11). This track lay is in addition to the public company's normal track lay. This action does not close the private company."
+      "desc": "During its operating turn, the public company owning this private company may place a track tile in the hex occupied by this private company (H11). This track lay is in addition to the public company's normal track lay. This action does not close the private company.",
+      "abilities":[
+         {
+            "type":"blocks_hexes",
+            "owner_type":"player",
+            "hexes":[
+               "H11"
+            ]
+         },
+         {
+            "type":"tile_lay",
+            "owner_type":"corporation",
+            "free":true,
+            "hexes":[
+               "H11"
+            ],
+             "tiles": [
+               "3",
+               "4",
+               "58"
+             ],
+            "when": "track",
+            "count":1
+         }
+      ]
     },
     {
       "name": "Great Lakes Shipping Company",
       "sym": "GLSC",
       "value": 70,
       "revenue": 15,
-      "desc": "At any time during its operating turn, the owning public company may place the port token in any one city adjacent to Lake Erie, Lake Huron or Georgian Bay. Placement of this token closes the Great Lakes Shipping Company."
+      "desc": "At any time during its operating turn, the owning public company may place the port token in any one city adjacent to Lake Erie, Lake Huron or Georgian Bay. Placement of this token closes the Great Lakes Shipping Company.",
+      "abilities": [{
+        "type": "assign_hexes",
+        "when": "owning_corp_or_turn",
+        "hexes": [
+          "C14",
+          "D19",
+          "E18",
+          "F17", "F9",
+          "H17", "H7", "H5",
+          "J17", "J5",
+          "K2",
+          "M18",
+          "O18"
+        ],
+        "count": 1,
+        "owner_type": "corporation"
+      },
+      {
+        "type": "assign_corporation",
+        "when": "sold",
+        "count": 1,
+        "owner_type": "corporation"
+      }]
     },
     {
       "name": "Niagara Falls Suspension Bridge Company",
@@ -442,18 +517,20 @@ module Engine
       "sym": "CGR",
       "logo": "1856/CGR",
       "name": "Canadian Government Railway",
-      "tokens": [
-        100,
-        100,
-        100,
-        100,
-        100,
-        100,
-        100,
-        100,
-        100
-      ],
-      "color": "cgrBlack"
+      "tokens": [],
+      "color": "cgrBlack",
+      "abilities": [
+         {
+            "type": "train_buy",
+            "description": "Inter train buy/sell at face value",
+            "face_value": true
+         },
+         {
+            "type": "train_limit",
+            "description": "3 train limit",
+            "increase": 100
+         }
+      ]
     }
   ],
   "trains": [
@@ -522,9 +599,12 @@ module Engine
       "price": 700,
       "num": 2,
       "events":[
-      {
-         "type":"nationalization"
-      }
+        {
+           "type":"nationalization"
+        },
+        {
+          "type": "remove_tokens"
+        }
       ]
     },
     {
@@ -544,7 +624,7 @@ module Engine
   ],
   "hexes": {
     "red": {
-      "offboard=revenue:yellow_30|brown_50|gray_60;path=a:4,b:_0;path=a:5,b:_0": [
+      "offboard=revenue:yellow_30|brown_50|black_60;path=a:4,b:_0;path=a:5,b:_0": [
         "A20"
       ],
       "border=edge:4": [
@@ -553,31 +633,28 @@ module Engine
       "offboard=revenue:yellow_30|brown_50;path=a:0,b:_0;path=a:5,b:_0;border=edge:1": [
         "B13"
       ],
-      "offboard=revenue:yellow_30|brown_50|gray_40;path=a:0,b:_0;path=a:_0,b:4;path=a:4,b:_0;path=a:_0,b:5;path=a:0,b:_0;path=a:_0,b:5": [
-        "F9"
-      ],
-      "offboard=revenue:yellow_30|brown_50|gray_40;path=a:0,b:_0;path=a:5,b:_0": [
+      "offboard=revenue:yellow_30|brown_50|black_40;path=a:0,b:_0;path=a:5,b:_0;icon=image:port,sticky:1": [
         "H5"
       ],
-      "offboard=revenue:yellow_20|brown_30;path=a:0,b:_0;path=a:5,b:_0": [
+      "offboard=revenue:yellow_20|brown_30;path=a:0,b:_0;path=a:5,b:_0;icon=image:port,sticky:1": [
         "K2"
       ],
-      "offboard=revenue:yellow_20|brown_30|gray_50;path=a:0,b:_0;path=a:1,b:_0;border=edge:5": [
+      "offboard=revenue:yellow_20|brown_30|black_50,hide:1,groups:Canadian West;path=a:0,b:_0;path=a:1,b:_0;border=edge:5": [
         "N1"
       ],
-      "offboard=revenue:yellow_20|brown_30|gray_50;path=a:0,b:_0;path=a:1,b:_0;path=a:5,b:_0;border=edge:2": [
+      "offboard=revenue:yellow_20|brown_30|black_50,groups:Canadian West;path=a:0,b:_0;path=a:1,b:_0;path=a:5,b:_0;border=edge:2": [
         "O2"
       ],
-      "offboard=revenue:yellow_20|brown_30|gray_50;path=a:1,b:_0;path=a:2,b:_0;border=edge:0": [
+      "offboard=revenue:yellow_20|brown_30|black_50,groups:Lower Canada;path=a:1,b:_0;path=a:2,b:_0;border=edge:0": [
         "Q8"
       ],
-      "offboard=revenue:yellow_20|brown_30|gray_50;path=a:2,b:_0;border=edge:3": [
+      "offboard=revenue:yellow_20|brown_30|black_50,hide:1,groups:Lower Canada;path=a:2,b:_0;border=edge:3": [
         "Q10"
       ],
-      "offboard=revenue:yellow_30|brown_40;path=a:2,b:_0;border=edge:3": [
+      "offboard=revenue:yellow_30|brown_40,hide:1,groups:Buffalo;path=a:2,b:_0;border=edge:3": [
         "P19"
       ],
-      "offboard=revenue:yellow_30|brown_40;path=a:1,b:_0;path=a:2,b:_0;border=edge:0": [
+      "offboard=revenue:yellow_30|brown_40,groups:Buffalo;path=a:1,b:_0;path=a:2,b:_0;border=edge:0": [
         "P17"
       ]
     },
@@ -602,6 +679,11 @@ module Engine
         "N5"
       ]
     },
+    "gray": {
+      "town=revenue:yellow_30|brown_50|black_40;path=a:0,b:_0;path=a:4,b:_0;path=a:5,b:_0;icon=image:port,sticky:1": [
+        "F9"
+      ]
+    },
     "white": {
       "city=revenue:0": [
         "H15",
@@ -617,10 +699,12 @@ module Engine
       "city=revenue:0;label=L": [
         "B19",
         "L13",
-        "P9",
+        "P9"
+      ],
+      "city=revenue:0;label=L;icon=image:port,sticky:1": [
+        "C14",
         "F17",
-        "O18",
-        "C14"
+        "O18"
       ],
       "city=revenue:0;label=L;upgrade=cost:40,terrain:water": [
         "N3"
@@ -631,16 +715,20 @@ module Engine
         "L9",
         "M6",
         "N9",
+        "H11"
+      ],
+      "town=revenue:0;icon=image:port,sticky:1": [
         "D19",
         "H17",
         "J5",
-        "M18",
-        "H11"
+        "M18"
       ],
       "town=revenue:0;town=revenue:0": [
         "I14",
         "F13",
-        "M10",
+        "M10"
+      ],
+      "town=revenue:0;town=revenue:0;icon=image:port,sticky:1": [
         "E18",
         "H7",
         "J17"
@@ -842,7 +930,8 @@ module Engine
         "yellow",
         "green",
         "brown",
-        "gray"
+        "gray",
+        "black"
         ],
         "status":[
         "fullcap",

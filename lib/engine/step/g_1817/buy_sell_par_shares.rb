@@ -50,11 +50,11 @@ module Engine
         end
 
         def can_sell_order?
-          !bought? && !shorted?
+          !bought?
         end
 
         def shorted?
-          @current_actions.any? { |x| x.class == Action::Short }
+          @current_actions.any? { |x| x.instance_of?(Action::Short) }
         end
 
         def redeemable_shares(entity)
@@ -77,7 +77,12 @@ module Engine
 
         def corporate_actions(entity)
           return [] if @winning_bid
-          return [] if @corporation_action && @corporation_action.entity != entity
+
+          if @corporate_action && @corporate_action.entity != entity
+            return ['buy_tokens'] if can_buy_tokens?(entity)
+
+            return []
+          end
 
           actions = []
           if @current_actions.none?
@@ -110,7 +115,9 @@ module Engine
         end
 
         def can_sell?(entity, bundle)
-          super && !(bundle.corporation.share_price.acquisition? || bundle.corporation.share_price.liquidation?)
+          super &&
+          !@corporate_action &&
+          !(bundle.corporation.share_price.acquisition? || bundle.corporation.share_price.liquidation?)
         end
 
         def can_short_any?(entity)
@@ -119,13 +126,16 @@ module Engine
 
         def can_short?(entity, corporation)
           # check total shorts
-          corporation.total_shares > 2 &&
-            @game.shorts(corporation).length < corporation.total_shares &&
-            corporation.operated? &&
+          shorts = @game.shorts(corporation).size
+
+          @game.phase.name != '8' &&
+            corporation.total_shares > 2 &&
+            (!@game.option_five_shorts? || shorts < 5) &&
+            shorts < corporation.total_shares &&
             entity.num_shares_of(corporation) <= 0 &&
             !(corporation.share_price.acquisition? || corporation.share_price.liquidation?) &&
-            !@round.players_sold[entity].values.include?(:short) &&
-            @game.phase.name != '8'
+            corporation.operated? &&
+            !@round.players_sold[entity].values.include?(:short)
         end
 
         def choice_name
@@ -180,7 +190,7 @@ module Engine
         def process_short(action)
           entity = action.entity
           corporation = action.corporation
-          @game.game_error("Cannot short #{corporation.name}") unless can_short?(entity, corporation)
+          raise GameError, "Cannot short #{corporation.name}" unless can_short?(entity, corporation)
 
           @round.players_sold[entity][corporation] = :short
           @game.short(entity, corporation)
@@ -213,8 +223,8 @@ module Engine
             .select { |o| o + entity.cash >= min_bid(corporation) }
             .map { |o| @game.format_currency(o) }
             .join(', ')
-            @game.game_error("Invalid bid, bids using privates include #{valid_options}"\
-            " and can be supplemented with cash between $0 and #{@game.format_currency(entity.cash)}")
+            raise GameError, "Invalid bid, bids using privates include #{valid_options}"\
+            " and can be supplemented with cash between $0 and #{@game.format_currency(entity.cash)}"
           end
 
           if @auctioning
@@ -251,7 +261,8 @@ module Engine
         def process_buy_tokens(action)
           # Buying tokens is not an 'action' and so can be done with player actions
           entity = action.entity
-          @game.game_error('Cannot buy tokens') unless can_buy_tokens?(entity)
+          raise GameError, 'Cannot buy tokens' unless can_buy_tokens?(entity)
+
           tokens = @game.tokens_needed(entity)
           token_cost = tokens * TOKEN_COST
           entity.spend(token_cost, @game.bank)
@@ -264,7 +275,8 @@ module Engine
         def process_choose(action)
           size = action.choice
           entity = action.entity
-          @game.game_error('Corporation size is invalid') unless choices.include?(size)
+          raise GameError, 'Corporation size is invalid' unless choices.include?(size)
+
           size_corporation(size)
           par_corporation if available_subsidiaries(entity).empty?
         end
@@ -278,7 +290,7 @@ module Engine
           entity = action.entity
           company = action.target
           corporation = @winning_bid.corporation
-          @game.game_error('Cannot use company in formation') unless available_subsidiaries(entity).include?(company)
+          raise GameError, 'Cannot use company in formation' unless available_subsidiaries(entity).include?(company)
 
           company.owner = corporation
           entity.companies.delete(company)
@@ -290,7 +302,7 @@ module Engine
           @log << "#{company.name} used for forming #{corporation.name} "\
             "contributing #{@game.format_currency(company.value)} value"
 
-          company.abilities(:additional_token) do |ability|
+          @game.abilities(company, :additional_token) do |ability|
             corporation.tokens << Engine::Token.new(corporation)
             ability.use!
           end
@@ -300,8 +312,9 @@ module Engine
 
         def process_take_loan(action)
           if @corporate_action && action.entity != @corporate_action.entity
-            @game.game_error('Cannot act as multiple corporations')
+            raise GameError, 'Cannot act as multiple corporations'
           end
+
           @corporate_action = action
           @round.last_to_act = action.entity.player
           @game.take_loan(action.entity, action.loan)
@@ -408,6 +421,10 @@ module Engine
           setup_auction
           super
           @corporate_action = nil
+        end
+
+        def choice_available?(entity)
+          entity.corporation?
         end
       end
     end

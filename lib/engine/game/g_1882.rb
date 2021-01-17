@@ -58,13 +58,13 @@ module Engine
         Round::Operating.new(self, [
           Step::Bankrupt,
           Step::BuyCompany,
-          Step::DiscardTrain,
           Step::HomeToken,
           Step::G1882::SpecialNWR,
           Step::G1882::Track,
           Step::Token,
           Step::Route,
           Step::Dividend,
+          Step::DiscardTrain,
           Step::BuyTrain,
           [Step::BuyCompany, blocks: true],
         ], round_num: round_num)
@@ -104,7 +104,7 @@ module Engine
         trains.each do |train_name|
           train = depot.upcoming.select { |t| t.name == train_name }.last
           @sc_reserve_trains << train
-          depot.upcoming.delete(train)
+          depot.remove_train(train)
         end
 
         # Due to SC adding an extra train this isn't quite a phase change, so the event needs to be tied to a train.
@@ -120,14 +120,14 @@ module Engine
         cp = @companies.find { |company| company.name == 'Canadian Pacific' }
         cp.add_ability(Ability::Close.new(
           type: :close,
-          when: :train,
-          corporation: cp.abilities(:shares).shares.first.corporation.name,
+          when: 'bought_train',
+          corporation: abilities(cp, :shares).shares.first.corporation.name,
         ))
       end
 
       def init_company_abilities
         @companies.each do |company|
-          next unless (ability = company.abilities(:exchange))
+          next unless (ability = abilities(company, :exchange))
 
           next unless ability.from.include?(:par)
 

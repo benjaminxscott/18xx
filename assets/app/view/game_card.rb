@@ -24,7 +24,7 @@ module View
         render_body,
       ])
     rescue StandardError
-      h(:div, "Error rendering game card... clear your local storage: #{@gdata}")
+      render_broken
     end
 
     def new?
@@ -43,7 +43,7 @@ module View
       return false unless player
       return false unless (acting = @gdata['acting'])
 
-      acting.include?(player['id'])
+      acting.include?(player['id'] || player['name'])
     end
 
     def render_header
@@ -52,8 +52,7 @@ module View
       bg_color =
         case @gdata['status']
         when 'new'
-          if owner?
-          elsif user_in_game?(@user, @gdata)
+          if user_in_game?(@user, @gdata)
             buttons << render_button('Leave', -> { leave_game(@gdata) })
           elsif players.size < @gdata['max_players']
             buttons << render_button('Join', -> { join_game(@gdata) })
@@ -252,6 +251,52 @@ module View
       end
 
       h(:div, props, children)
+    end
+
+    def render_broken
+      button = if @confirm_delete != @gdata['id']
+                 render_button('Delete', -> { store(:confirm_delete, @gdata['id']) })
+               else
+                 render_button('Confirm', -> { delete_game(@gdata) })
+               end
+
+      header_props = {
+        style: {
+          position: 'relative',
+          padding: '0.3em 0.1rem 0 0.5rem',
+          backgroundColor: 'salmon',
+        },
+      }
+
+      text_props = {
+        style: {
+          display: 'inline-block',
+          maxWidth: '13rem',
+          color: 'black',
+        },
+      }
+
+      body_props = {
+        style: {
+          lineHeight: '1.2rem',
+          padding: '0.3rem 0.5rem',
+        },
+      }
+
+      h('div.game.card', [
+        h('div.header', header_props, [
+          h(:div, text_props, [
+            h(:div, "Game: #{@gdata['title']}"),
+            h('div.nowrap', 'Owner: You'),
+          ]),
+          button,
+        ]),
+        h(:div, body_props, [
+          h(:div, "Id: #{@gdata['id']}"),
+          h(:div, 'Error rendering game card:'),
+          h(:div, @gdata.to_s[0..500]),
+        ]),
+      ])
     end
   end
 end

@@ -2,6 +2,7 @@
 
 require_relative '../tracker'
 require_relative '../track'
+require_relative '../upgrade_track_max_exits'
 require_relative 'automatic_loan'
 
 module Engine
@@ -9,37 +10,23 @@ module Engine
     module G1867
       class Track < Track
         include AutomaticLoan
+        include UpgradeTrackMaxExits
         def setup
           super
           @hex = nil
         end
 
         def lay_tile(action, extra_cost: 0, entity: nil)
-          @game.game_error('Cannot lay and upgrade the same tile in the same turn') if action.hex == @hex
+          raise GameError, 'Cannot lay and upgrade the same tile in the same turn' if action.hex == @hex
+
           super
+          @game.place_cn_montreal_token(action.hex.tile) if action.tile.name == '639'
           @hex = action.hex
         end
 
         def connects_to?(hex, tile, to)
           dir = hex.neighbor_direction(to)
           tile.exits.include?(dir)
-        end
-
-        def legal_tile_rotation?(entity, hex, tile)
-          legal = super
-          return legal unless legal
-          return legal if tile.color != :yellow
-
-          # G15, K13, M11 have to be connected to specific neighbors
-
-          case hex.id
-          when 'G15'
-            connects_to?(hex, tile, @game.hex_by_id('F16'))
-          when 'K13', 'M11'
-            connects_to?(hex, tile, @game.hex_by_id('L12'))
-          else
-            legal
-          end
         end
       end
     end

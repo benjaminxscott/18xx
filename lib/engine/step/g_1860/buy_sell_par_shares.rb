@@ -2,7 +2,7 @@
 
 require_relative '../base'
 require_relative '../share_buying'
-require_relative '../../action/buy_company.rb'
+require_relative '../../action/buy_company'
 require_relative '../../action/buy_shares'
 require_relative '../../action/par'
 
@@ -43,6 +43,10 @@ module Engine
           []
         end
 
+        def purchasable_unsold_companies
+          []
+        end
+
         def can_buy_company?(player, company)
           !did_sell?(company, player)
         end
@@ -60,11 +64,19 @@ module Engine
         end
 
         def process_buy_shares(action)
+          corporation = action.bundle.corporation
+          floated = corporation.floated?
+
           super
 
-          corporation = action.bundle.corporation
-          place_home_track(corporation) if corporation.floated?
+          place_home_track(corporation) if corporation.floated? && !floated && !@game.sr_after_southern
           @game.check_new_layer
+        end
+
+        def process_sell_shares(action)
+          super
+
+          @game.check_bank_broken!
         end
 
         def process_buy_company(action)
@@ -73,7 +85,7 @@ module Engine
           price = action.price
           owner = company.owner
 
-          @game.game_error("Cannot buy #{company.name} from #{owner.name}") unless owner == @game.bank
+          raise GameError, "Cannot buy #{company.name} from #{owner.name}" unless owner == @game.bank
 
           company.owner = player
 
@@ -131,16 +143,17 @@ module Engine
         def process_sell_company(action)
           company = action.company
           player = action.entity
-          @game.game_error("Cannot sell #{company.id}") unless can_sell_company?(company)
+          raise GameError, "Cannot sell #{company.id}" unless can_sell_company?(company)
 
           sell_company(player, company, action.price)
           @round.last_to_act = player
+          @game.check_bank_broken!
         end
 
         def sell_price(entity)
           return 0 unless can_sell_company?(entity)
 
-          entity.value - 30
+          entity.value - @game.class::COMPANY_SALE_FEE
         end
 
         def can_sell_any_companies?(entity)
@@ -177,7 +190,7 @@ module Engine
           # skip if a tile is already in home location
           return unless tile.color == :white
 
-          @log << "#{corporation.name} must choose tile for home location"
+          @log << "#{corporation.name} (#{corporation.owner.name}) must choose tile for home location"
 
           @round.pending_tracks << {
             entity: corporation,

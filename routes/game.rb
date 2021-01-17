@@ -55,9 +55,8 @@ class Api
             DB.with_advisory_lock(:action_lock, game.id) do
               if game.settings['pin']
                 action_id = r.params['id']
-                action = r.params
-                action.delete('_client_id')
-                meta = action.delete('meta')
+                action = r.params.clone
+                meta = action['meta']
                 halt(400, 'Game missing metadata') unless meta
                 halt(400, 'Game out of sync') unless actions_h(game).size + 1 == action_id
 
@@ -65,8 +64,6 @@ class Api
                   game: game,
                   user: user,
                   action_id: action_id,
-                  turn: meta['turn'],
-                  round: meta['round'],
                   action: action,
                 )
 
@@ -82,28 +79,18 @@ class Api
 
                 game.save
               else
-                players = users.map { |u| [u.id, u.name] }.to_h
-                engine = Engine::GAMES_BY_TITLE[game.title].new(
-                  players,
-                  id: game.id,
-                  actions: actions_h(game),
-                  optional_rules: game.settings['optional_rules']&.map(&:to_sym),
-                )
-
-                action_id = r.params['id']
-                halt(400, 'Game out of sync') unless engine.actions.size + 1 == action_id
+                engine = Engine::Game.load(game, actions: actions_h(game))
 
                 r.params['user'] = user.id
 
                 engine = engine.process_action(r.params)
-                action = engine.actions.last.to_h
+                halt(500, "Illegal action: #{engine.exception}") if engine.exception
+                action = engine.raw_actions.last.to_h
 
                 Action.create(
                   game: game,
                   user: user,
-                  action_id: action_id,
-                  turn: engine.turn,
-                  round: engine.round.name,
+                  action_id: action['id'],
                   action: action,
                 )
 
@@ -123,18 +110,9 @@ class Api
                 ['Your Turn', acting.map(&:id), false]
               end
 
-            if user_ids.any?
-              MessageBus.publish(
-                '/turn',
-                user_ids: user_ids,
-                game_id: game.id,
-                game_url: "#{r.base_url}/game/#{game.id}",
-                type: type,
-                force: force,
-              )
-            end
-
+            publish_turn(user_ids, game, r.base_url, type, force) unless user_ids.empty?
             publish("/game/#{game.id}", **action)
+
             game.to_h
           end
 
@@ -149,17 +127,14 @@ class Api
 
           # POST '/api/game/<game_id>/start
           r.is 'start' do
-            players = users.map { |u| [u.id, u.name] }.to_h
-            engine = Engine::GAMES_BY_TITLE[game.title].new(
-              players,
-              id: game.id,
-              optional_rules: game.settings['optional_rules']&.map(&:to_sym),
-            )
+            engine = Engine::Game.load(game, actions: [])
             unless game.players.size.between?(*Engine.player_range(engine.class))
               halt(400, 'Player count not supported')
             end
 
-            set_game_state(game, engine, users)
+            acting = set_game_state(game, engine, users)
+            publish_turn(acting.map(&:id), game, r.base_url, 'Your turn', false)
+
             game.to_h
           end
 
@@ -226,5 +201,18 @@ class Api
 
     game.save
     acting
+  end
+
+  def publish_turn(user_ids, game, url, type, force)
+    game_id = game.id
+
+    MessageBus.publish(
+      '/turn',
+      user_ids: user_ids,
+      game_id: game_id,
+      game_url: "#{url}/game/#{game_id}",
+      type: type,
+      force: force,
+    )
   end
 end

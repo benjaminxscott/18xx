@@ -76,7 +76,7 @@ game config/code:
     - **terrain** - `mountain`/`water` - multiple terrain types separated by `|`
 - **border**
     - **edge** - *required* - integer - which edge to modify
-    - **type** - `mountain`/`water`/`impassible` - Border type. If not'
+    - **type** - `mountain`/`water`/`impassable` - Border type. If not'
       specified, a line matching the tile's color is drawn on top of the edge's
       normal black line so that two adjacent tiles appear joined.
     - **cost** - integer - cost to cross for mountain/water borders
@@ -88,7 +88,9 @@ game config/code:
     - **sticky** - `1` indicates the icon should remain visible when a tile
       upgrade is placed on this hex
     - **blocks_lay** - indicates this tile cannot be laid normally
-  but can only be laid by special ability, such as a private company's ability.
+      but can only be laid by special ability, such as a private company's ability.
+- **frame**
+    - **color** - *required* - the color of the frame
 
 #### Town/City/Offboard sub parts
 

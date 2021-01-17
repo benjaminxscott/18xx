@@ -40,6 +40,12 @@ module GameManager
     end
   end
 
+  def enter_fixture(path)
+    @connection.safe_get("/fixtures/#{path}.json", '') do |data|
+      store(:game_data, data, skip: false)
+    end
+  end
+
   def get_games(params = nil)
     params ||= `window.location.search`
 
@@ -136,8 +142,12 @@ module GameManager
     game['status'] == 'active' && game['acting'].include?(user&.dig('id'))
   end
 
-  def url(game, path = '')
+  def self.url(game, path = '')
     "/game/#{game['id']}#{path}"
+  end
+
+  def url(game, path = '')
+    GameManager.url(game, path)
   end
 
   protected

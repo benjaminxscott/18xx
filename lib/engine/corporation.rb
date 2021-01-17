@@ -10,7 +10,6 @@ require_relative 'share'
 require_relative 'share_holder'
 require_relative 'spender'
 require_relative 'token'
-require_relative 'transfer'
 
 module Engine
   class Corporation
@@ -22,16 +21,17 @@ module Engine
     include Passer
     include ShareHolder
     include Spender
-    include Transfer
 
     attr_accessor :ipoed, :par_via_exchange, :max_ownership_percent, :float_percent, :capitalization, :max_share_price
-    attr_reader :companies, :min_price, :name, :full_name, :fraction_shares, :type
+    attr_reader :companies, :min_price, :name, :full_name, :fraction_shares, :type, :id, :needs_token_to_par,
+                :presidents_share
     attr_writer :par_price, :share_price
 
     SHARES = ([20] + Array.new(8, 10)).freeze
 
     def initialize(sym:, name:, **opts)
       @name = sym
+      @id = sym
       @full_name = name
 
       shares = (opts[:shares] || SHARES).map.with_index do |percent, index|
@@ -54,15 +54,19 @@ module Engine
       @float_percent = opts[:float_percent] || 60
       @floated = false
       @max_ownership_percent = opts[:max_ownership_percent] || 60
-      @can_hold_above_max = opts[:can_hold_above_max] || false
       @min_price = opts[:min_price]
       @always_market_price = opts[:always_market_price] || false
       @needs_token_to_par = opts[:needs_token_to_par] || false
       @par_via_exchange = nil
-      @type = opts[:type]
+      @type = opts[:type]&.to_sym
 
       init_abilities(opts[:abilities])
       init_operator(opts)
+    end
+
+    # This is used to allow "Buying power" to be rendered
+    def can_buy?
+      true
     end
 
     def <=>(other)
@@ -82,13 +86,6 @@ module Engine
 
     def buy_multiple?
       @share_price ? @share_price.buy_multiple? : false
-    end
-
-    def can_par?(entity)
-      return false if @par_via_exchange && @par_via_exchange.owner != entity
-      return false if @needs_token_to_par && @tokens.empty?
-
-      !@ipoed
     end
 
     def share_price
@@ -135,8 +132,10 @@ module Engine
       @share_holders ||= Hash.new(0)
     end
 
-    def player_share_holders
-      share_holders.select { |s_h, _| s_h.player? }
+    def player_share_holders(corporate: false)
+      share_holders.select do |s_h, _|
+        s_h.player? || (corporate && s_h.corporation? && s_h != self)
+      end
     end
 
     def corporate_share_holders
@@ -147,8 +146,8 @@ module Engine
       shares.reject { |share| share.corporation == self }
     end
 
-    def id
-      @name
+    def ipo_shares
+      shares.select { |share| share.corporation == self }
     end
 
     def president?(player)
@@ -183,8 +182,6 @@ module Engine
 
     # Is it legal to hold percent shares in this corporation?
     def holding_ok?(share_holder, extra_percent = 0)
-      return true if @can_hold_above_max
-
       percent = share_holder.percent_of(self) + extra_percent
       %i[multiple_buy unlimited].include?(@share_price&.type) || percent <= @max_ownership_percent
     end
@@ -197,24 +194,6 @@ module Engine
       return super if ability.owner == self
 
       @companies.each { |company| company.remove_ability(ability) }
-    end
-
-    def abilities(type = nil, **opts)
-      abilities = []
-
-      if (ability = super(type, **opts, &nil))
-        abilities << ability
-        yield ability, self if block_given?
-      end
-
-      @companies.each do |company|
-        company.abilities(type, **opts) do |company_ability|
-          abilities << company_ability
-          yield company_ability, company if block_given?
-        end
-      end
-
-      abilities
     end
 
     def available_share

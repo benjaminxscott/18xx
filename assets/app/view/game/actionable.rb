@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'game_manager'
 require 'lib/params'
 require 'lib/storage'
 
@@ -10,16 +11,19 @@ module View
         base.needs :game_data, default: {}, store: true
         base.needs :game, store: true
         base.needs :flash_opts, default: {}, store: true
+        base.needs :confirm_opts, default: {}, store: true
         base.needs :connection, store: true, default: nil
         base.needs :user, store: true, default: nil
         base.needs :tile_selector, default: nil, store: true
         base.needs :selected_company, default: nil, store: true
+        base.needs :selected_corporation, default: nil, store: true
         base.needs :app_route, default: nil, store: true
         base.needs :round_history, default: nil, store: true
+        base.needs :selected_action_id, default: nil, store: true
       end
 
       def save_user_settings(settings)
-        @connection.safe_post("/game/#{@game_data['id']}/user_settings", settings)
+        @connection.safe_post(GameManager.url(@game_data, '/user_settings'), settings)
 
         @game_data['user_settings'] ||= {}
         @game_data['user_settings'].merge!(settings)
@@ -31,8 +35,24 @@ module View
         @participant = (@game.players.map(&:id) + [@game_data['user']['id']]).include?(@user&.dig('id'))
       end
 
+      def check_consent(player, click)
+        opts = {
+          color: :yellow,
+          click: click,
+          message: "This action requires consent from #{player.name}!",
+        }
+        store(:confirm_opts, opts, skip: false)
+      end
+
       def process_action(action)
         hotseat = @game_data[:mode] == :hotseat
+
+        if @game.exception
+          msg = 'This game is broken and cannot accept any new actions. If '\
+                'this issue has not already been reported, please follow the '\
+                'instructions at the top of the page to report it.'
+          return store(:flash_opts, msg)
+        end
 
         if Lib::Params['action']
           return store(:flash_opts, 'You cannot make changes while browsing history.
@@ -51,12 +71,13 @@ module View
           action.user = @user['id']
         end
 
-        game = @game.process_action(action)
+        game = @game.process_action(action).maybe_raise!
+
         @game_data[:actions] << action.to_h
         store(:game_data, @game_data, skip: true)
 
-        if @game.finished
-          @game_data[:result] = @game.result
+        if game.finished
+          @game_data[:result] = game.result
           @game_data[:status] = 'finished'
         else
           @game_data[:result] = {}
@@ -64,6 +85,10 @@ module View
         end
 
         if hotseat
+          @game_data[:turn] = game.turn
+          @game_data[:round] = game.round.name
+          @game_data[:acting] = game.active_players_id
+          @game_data[:updated_at] = Time.now.to_i
           Lib::Storage[@game_data[:id]] = @game_data
         elsif participant?
           json = action.to_h
@@ -77,7 +102,12 @@ module View
             }
             json['meta'] = meta
           end
-          @connection.safe_post("/game/#{@game_data['id']}/action", json)
+          @connection.post(GameManager.url(@game_data, '/action'), json) do |data|
+            if (error = data['error'])
+              store(:flash_opts, "The server did not accept this action due to: #{error}... refreshing.")
+              `setTimeout(function() { location.reload() }, 5000)`
+            end
+          end
         else
           store(
             :flash_opts,
@@ -89,17 +119,19 @@ module View
         clear_ui_state
         store(:game, game)
       rescue StandardError => e
-        store(:game, @game.clone(@game.actions), skip: true)
+        clear_ui_state
         store(:flash_opts, e.message)
-        e.backtrace.each { |line| puts line }
+        `setTimeout(function() { self['$store']('game', Opal.nil) }, 10)`
       end
 
       def clear_ui_state
         store(:selected_company, nil, skip: true)
+        store(:selected_corporation, nil, skip: true)
         store(:tile_selector, nil, skip: true)
+        store(:selected_action_id, nil, skip: true)
       end
 
-      def history_link(text, title, action_id = nil, style_extra = {})
+      def history_link(text, title, action_id = nil, style_extra = {}, as_button = false)
         route = Lib::Params.add(@app_route, 'action', action_id)
 
         click = lambda do
@@ -109,18 +141,19 @@ module View
           clear_ui_state
         end
 
-        h(
-          Link,
+        props = {
           href: route,
           click: click,
           title: title,
           children: text,
           style: {
-            color: 'currentColor',
             textDecoration: 'none',
             **style_extra,
           },
-        )
+        }
+        props['class'] = '.button_link' if as_button
+
+        h(Link, props)
       end
     end
   end

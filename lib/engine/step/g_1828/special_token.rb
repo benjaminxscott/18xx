@@ -38,8 +38,8 @@ module Engine
 
         def process_pass(action)
           entity = action.entity
-          ability = @company.abilities(:token, time: 'sold')
-          @game.game_error("Not #{entity.name}'s turn: #{action.to_h}") unless entity == @company
+          ability = @game.abilities(@company, :token, time: 'sold')
+          raise GameError, "Not #{entity.name}'s turn: #{action.to_h}" unless entity == @company
 
           hex = @game.hex_by_id(ability.hexes.first)
           @log << "#{entity.owner.name} passes placing a token on #{hex.name} (#{hex.location_name})"
@@ -54,9 +54,7 @@ module Engine
         def blocking_for_sold_company?
           return false unless (company = @round.just_sold_company)
 
-          #          company = @round.respond_to?(:just_sold_company) && @round.just_sold_company
-
-          if (ability = company.abilities(:token, time: 'sold'))
+          if (ability = @game.abilities(company, :token, time: 'sold'))
             if available_tokens(company.owner) && !already_tokened_this_round?(company.owner)
               @company = company
               return true

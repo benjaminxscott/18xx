@@ -68,7 +68,7 @@ module Engine
           @entity = action.entity
           owner = @entity.owner
           token = action.city.tokens[action.slot]
-          @game.game_error("Cannot remove #{token.corporation.name} token") unless token.corporation == @entity.owner
+          raise GameError, "Cannot remove #{token.corporation.name} token" unless token.corporation == @entity.owner
 
           home_token = owner.tokens.first == token
           token.remove!
@@ -151,12 +151,10 @@ module Engine
           return unless entity.company?
 
           case @state
-          when nil
-            entity.abilities(:token)
-          when :place_token
-            entity.abilities(:token)
+          when nil, :place_token
+            @game.abilities(entity, :token)
           when :lay_tile
-            entity.abilities(:tile_lay, time: 'track')
+            @game.abilities(entity, :tile_lay, time: 'special_track')
           end
         end
       end

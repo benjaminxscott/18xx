@@ -11,7 +11,7 @@ module Engine
       def actions(entity)
         return super unless blocking_for_sold_company?
 
-        @company.abilities(:tile_lay, time: 'sold').blocks ? ACTIONS : ACTIONS_WITH_PASS
+        @game.abilities(@company, :tile_lay, time: 'sold').blocks ? ACTIONS : ACTIONS_WITH_PASS
       end
 
       def blocking?
@@ -22,8 +22,8 @@ module Engine
         return super unless action.entity == @company
 
         entity = action.entity
-        ability = @company.abilities(:tile_lay, time: 'sold')
-        @game.game_error("Not #{entity.name}'s turn: #{action.to_h}") unless entity == @company
+        ability = @game.abilities(@company, :tile_lay, time: 'sold')
+        raise GameError, "Not #{entity.name}'s turn: #{action.to_h}" unless entity == @company
 
         lay_tile(action, spender: entity.owner)
         check_connect(action, ability)
@@ -34,8 +34,8 @@ module Engine
 
       def process_pass(action)
         entity = action.entity
-        ability = @company.abilities(:tile_lay, time: 'sold')
-        @game.game_error("Not #{entity.name}'s turn: #{action.to_h}") unless entity == @company
+        ability = @game.abilities(@company, :tile_lay, time: 'sold')
+        raise GameError, "Not #{entity.name}'s turn: #{action.to_h}" unless entity == @company
 
         @company.remove_ability(ability)
         @log << "#{entity.name} passes lay track"
@@ -48,7 +48,7 @@ module Engine
         @company = nil
         just_sold_company = @round.respond_to?(:just_sold_company) && @round.just_sold_company
 
-        if just_sold_company&.abilities(:tile_lay, time: 'sold')
+        if @game.abilities(just_sold_company, :tile_lay, time: 'sold')
           @company = just_sold_company
           return true
         end

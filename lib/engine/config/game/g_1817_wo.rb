@@ -45,7 +45,8 @@ module Engine
     "H9": "Libertalia",
     "J9": "You are lost",
     "L1": "Gold Rush",
-    "L9": "Nieuw Zeeland"
+    "L9": "Nieuw Zeeland",
+    "C4": "NYC"
   },
   "tiles": {
     "5": "unlimited",
@@ -135,7 +136,7 @@ module Engine
            "tiles": [
              "X00"
            ],
-           "when": "track",
+           "when": ["special_track", "owning_corp_or_turn"],
            "owner_type": "corporation",
            "count": 1
          }
@@ -151,7 +152,7 @@ module Engine
         {
             "type": "tile_income",
             "income" : 20,
-            "terrain": "mountain",
+            "terrain": "lake",
             "owner_type": "corporation",
             "owner_only": true
         }
@@ -173,7 +174,10 @@ module Engine
         {
           "type": "assign_hexes",
           "hexes": [
+            "G4", "K4"
           ],
+          "count":1,
+          "when": "owning_corp_or_turn",
           "owner_type": "corporation"
         }
       ]
@@ -213,7 +217,7 @@ module Engine
             "7","8", "9"
           ],
           "free": false,
-          "when": "track",
+          "when": ["special_track", "owning_corp_or_turn"],
           "owner_type": "corporation",
           "count": 1
         }
@@ -240,7 +244,7 @@ module Engine
             "7","8", "9"
           ],
           "free": false,
-          "when": "track",
+          "when": ["special_track", "owning_corp_or_turn"],
           "owner_type": "corporation",
           "count": 2
         }
@@ -435,6 +439,7 @@ module Engine
       "name": "2+",
       "distance": 2,
       "price": 100,
+      "obsolete_on": "4",
       "num": 2
     },
     {
@@ -442,7 +447,12 @@ module Engine
       "distance": 3,
       "price": 250,
       "rusts_on": "6",
-      "num": 7
+      "num": 7,
+      "events": [
+        {
+          "type": "nieuw_zeeland_available"
+        }
+      ]
     },
     {
       "name": "4",
@@ -473,7 +483,10 @@ module Engine
       "name": "8",
       "distance": 8,
       "price": 1100,
-      "num": 32
+      "num": 32,
+      "events": [
+        {"type": "signal_end_game"}
+      ]
     }
   ],
   "hexes": {

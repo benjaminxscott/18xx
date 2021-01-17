@@ -68,14 +68,14 @@ module Engine
 
         Round::Operating.new(self, [
           Step::Bankrupt,
-          Step::DiscardTrain,
-          Step::G18TN::SpecialTrack,
+          Step::SpecialTrack,
           Step::G18TN::BuyCompany,
           Step::HomeToken,
-          Step::G18TN::Track,
+          Step::Track,
           Step::Token,
           Step::Route,
           Step::G18TN::Dividend,
+          Step::DiscardTrain,
           Step::SingleDepotTrainBuy,
           [Step::BuyCompany, blocks: true],
         ], round_num: round_num)
@@ -92,9 +92,7 @@ module Engine
 
         corporation = routes.first&.corporation
 
-        abilities = corporation&.abilities(:civil_war)
-
-        return total_revenue if !abilities || abilities.empty? || routes.size < corporation.trains.size
+        return total_revenue if !abilities(corporation, :civil_war) || routes.size < corporation.trains.size
 
         # The train with the lowest revenue loses the income due to the war effort
         total_revenue - routes.map(&:revenue).min
@@ -110,7 +108,7 @@ module Engine
         end
 
         if allowed_to_buy_during_operation_round_one?
-          candidates.reject! { |c| @round.company_sellers.include?(c.owner) }
+          candidates.reject! { |c| @round.company_sellers.values.include?(c.owner) }
         end
         candidates
       end

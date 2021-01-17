@@ -10,7 +10,8 @@ module Engine
         include PassableAuction
         TOKEN_COST = 50
         MIN_BID = 100
-        MAX_BID = 400
+        MAX_MINOR_PAR = 135
+        MAJOR_PHASE = 4
 
         def actions(entity)
           return [] unless entity == current_entity
@@ -79,7 +80,7 @@ module Engine
           price = winner.price
 
           @log << "#{entity.name} wins bid on #{corporation.name} for #{@game.format_currency(price)}"
-          par_price = price / 2
+          par_price = [price / 2, MAX_MINOR_PAR].min
 
           share_price = @game.find_share_price(par_price)
 
@@ -96,20 +97,23 @@ module Engine
           entity.spend(price, corporation)
 
           @auctioning = nil
+
+          # Player to the right of the winner is the new player
+          @round.goto_entity!(winner.entity)
           pass!
         end
 
         def can_bid?(entity)
           max_bid(entity) >= MIN_BID && !bought? &&
           @game.corporations.any? do |c|
-            c.can_par?(entity) && c.type == :minor && can_buy?(entity, c.shares.first&.to_bundle)
+            @game.can_par?(c, entity) && c.type == :minor && can_buy?(entity, c.shares.first&.to_bundle)
           end
         end
 
         def can_ipo_any?(entity)
-          @game.phase.name.to_i >= 4 && !bought? &&
+          @game.phase.name.to_i >= MAJOR_PHASE && !bought? &&
           @game.corporations.any? do |c|
-            c.can_par?(entity) && c.type == :major && can_buy?(entity, c.shares.first&.to_bundle)
+            @game.can_par?(c, entity) && c.type == :major && can_buy?(entity, c.shares.first&.to_bundle)
           end
         end
 
@@ -120,7 +124,7 @@ module Engine
         end
 
         def max_bid(player, _corporation = nil)
-          [MAX_BID, player.cash].min
+          player.cash
         end
 
         def pass_description
@@ -142,10 +146,10 @@ module Engine
           # Major's are par, minors are bid
           phase = @game.phase.name.to_i
           if entity.type == :major
-            if phase >= 4
+            if phase >= MAJOR_PHASE
               :par
             else
-              'Cannot start till phase 4'
+              "Cannot start till phase #{MAJOR_PHASE}"
             end
           else
             :bid

@@ -24,6 +24,10 @@ module Engine
         actions
       end
 
+      def pass_description
+        'Pass (Share Sale)'
+      end
+
       def log_pass(entity)
         @log << "#{entity.name} passes selling shares"
       end
@@ -48,7 +52,7 @@ module Engine
       end
 
       def sell_shares(entity, shares, swap: nil)
-        @game.game_error("Cannot sell shares of #{shares.corporation.name}") if !can_sell?(entity, shares) && !swap
+        raise GameError, "Cannot sell shares of #{shares.corporation.name}" if !can_sell?(entity, shares) && !swap
 
         @game.sell_shares_and_change_price(shares, swap: swap)
       end
@@ -58,7 +62,7 @@ module Engine
           next if bought?(entity, share.corporation)
 
           share.corporation
-        end.compact
+        end.compact.uniq
       end
 
       def bought?(entity, corporation)

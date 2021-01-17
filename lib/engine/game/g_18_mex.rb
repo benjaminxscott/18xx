@@ -7,10 +7,12 @@ require_relative 'company_price_50_to_150_percent'
 module Engine
   module Game
     class G18Mex < Base
+      attr_reader :merged_major
+
       load_from_json(Config::Game::G18Mex::JSON)
       AXES = { x: :number, y: :letter }.freeze
 
-      DEV_STAGE = :beta
+      DEV_STAGE = :production
 
       GAME_LOCATION = 'Mexico'
       GAME_RULES_URL = 'https://secure.deepthoughtgames.com/games/18MEX/rules.pdf'
@@ -44,18 +46,26 @@ module Engine
       ).freeze
 
       OPTIONAL_RULES = [
-        { sym: :triple_yellow_first_or,
+        {
+          sym: :triple_yellow_first_or,
           short_name: 'Extra yellow',
-          desc: 'Allow corporations to lay 3 yellow tiles their first OR' },
-        { sym: :early_buy_of_kcmo,
+          desc: 'Allow corporations to lay 3 yellow tiles their first OR',
+        },
+        {
+          sym: :early_buy_of_kcmo,
           short_name: 'Early buy of KCM&O private',
-          desc: 'KCM&O private may be bought in for up to face value' },
-        { sym: :delay_minor_close,
+          desc: 'KCM&O private may be bought in for up to face value',
+        },
+        {
+          sym: :delay_minor_close,
           short_name: 'Delay minor close',
-          desc: "Minor closes at the start of the SR following buy of first 3'" },
-        { sym: :hard_rust_t4,
+          desc: "Minor closes at the start of the SR following buy of first 3'",
+        },
+        {
+          sym: :hard_rust_t4,
           short_name: 'Hard rust',
-          desc: "4 trains rust when 6' train is bought" },
+          desc: "4 trains rust when 6' train is bought",
+        },
       ].freeze
 
       def self.title
@@ -139,7 +149,7 @@ module Engine
         @minors.each do |minor|
           train = @depot.upcoming[0]
           train.buyable = false
-          minor.buy_train(train, :free)
+          buy_train(minor, train, :free)
           hex = hex_by_id(minor.coordinates)
           hex.tile.cities[0].place_token(minor, minor.next_token)
         end
@@ -187,7 +197,6 @@ module Engine
         Round::Operating.new(self, [
           Step::Bankrupt,
           Step::G18Mex::Assign,
-          Step::DiscardTrain,
           Step::G18Mex::BuyCompany,
           Step::HomeToken,
           Step::G18Mex::Merge,
@@ -196,6 +205,7 @@ module Engine
           Step::Token,
           Step::Route,
           Step::G18Mex::Dividend,
+          Step::DiscardTrain,
           Step::G18Mex::SingleDepotTrainBuy,
           [Step::BuyCompany, blocks: true],
         ], round_num: round_num)
@@ -369,6 +379,7 @@ module Engine
           return
         end
 
+        @merged_major = major
         @log << "-- #{major.name} merges into #{ndm.name} --"
 
         # Rule 5e: Any other shares are sold off for half market price
@@ -460,7 +471,7 @@ module Engine
           major.spend(major.cash, ndm)
         end
         if major.trains.any?
-          trains_transfered = major.transfer(:trains, ndm).map(&:name)
+          trains_transfered = transfer(:trains, major, ndm).map(&:name)
           @log << "#{ndm.name} receives the trains: #{trains_transfered}"
         end
 
@@ -579,7 +590,7 @@ module Engine
           end
         end
 
-        minor.spend(minor.cash, major)
+        minor.spend(minor.cash, major) if minor.cash.positive?
         hexes.each do |hex|
           hex.tile.cities.each do |city|
             if city.tokened_by?(minor)
@@ -590,7 +601,7 @@ module Engine
 
         # Delete train so it wont appear in rust message
         train = minor.trains.first
-        minor.remove_train(train)
+        remove_train(train)
         trains.delete(train)
 
         minor.close!
@@ -648,7 +659,7 @@ module Engine
       end
 
       def remove_ability(corporation, ability_name)
-        corporation.abilities(ability_name) do |ability|
+        abilities(corporation, ability_name) do |ability|
           corporation.remove_ability(ability)
         end
       end

@@ -5,6 +5,8 @@ require_relative 'base'
 module Engine
   module Round
     class Operating < Base
+      attr_reader :current_operator
+
       def self.short_name
         'OR'
       end
@@ -14,10 +16,11 @@ module Engine
       end
 
       def select_entities
-        @game.minors.select(&:floated?) + @game.corporations.select(&:floated?).sort
+        @game.operating_order
       end
 
       def setup
+        @current_operator = nil
         @home_token_timing = @game.class::HOME_TOKEN_TIMING
         @game.payout_companies
         @entities.each { |c| @game.place_home_token(c) } if @home_token_timing == :operating_round
@@ -46,11 +49,15 @@ module Engine
         clear_cache!
       end
 
+      def skip_entity?(entity)
+        entity.closed?
+      end
+
       def next_entity!
         return if @entity_index == @entities.size - 1
 
         next_entity_index!
-        return next_entity! if @entities[@entity_index].closed?
+        return next_entity! if skip_entity?(@entities[@entity_index])
 
         @steps.each(&:unpass!)
         @steps.each(&:setup)
@@ -59,6 +66,7 @@ module Engine
 
       def start_operating
         entity = @entities[@entity_index]
+        @current_operator = entity
         if (ability = teleported?(entity))
           entity.remove_ability(ability)
         end
@@ -81,7 +89,7 @@ module Engine
       end
 
       def teleported?(entity)
-        entity.abilities(:teleport)&.find(&:used?)
+        Array(@game.abilities(entity, :teleport)).find(&:used?)
       end
 
       def operating?

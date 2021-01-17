@@ -33,21 +33,8 @@ module Engine
       @trains.reject(&:operated)
     end
 
-    # price is nil, :free, or a positive int
-    def buy_train(train, price = nil)
-      spend(price || train.price, train.owner) if price != :free
-      train.owner.remove_train(train)
-      train.owner = self
-      @trains << train
-      @rusted_self = false
-    end
-
-    def remove_train(train)
-      @trains.delete(train)
-    end
-
     def operated?
-      @operating_history.any?
+      !@operating_history.empty?
     end
 
     def next_token

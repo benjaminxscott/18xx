@@ -11,10 +11,25 @@ module Engine
   "filename": "18_los_angeles",
   "modulename": "18LosAngeles",
   "certLimit": {
-    "2": 19,
-    "3": 14,
-    "4": 12,
-    "5": 11
+    "2": {
+      "5": 19,
+      "4": 16
+    },
+    "3": {
+      "5" : 14,
+      "4" : 11
+    },
+    "4": {
+      "6" : 12,
+      "5" : 10,
+      "4" : 8
+    },
+    "5": {
+      "7" : 11,
+      "6" : 10,
+      "5" : 8,
+      "4" : 6
+    }
   },
   "locationNames": {
     "A2": "Reseda",
@@ -164,7 +179,7 @@ module Engine
       "abilities": [
         {
           "type": "close",
-          "when": "never",
+          "on_phase": "never",
           "owner_type": "corporation"
         }
       ]
@@ -289,7 +304,6 @@ module Engine
               "8",
               "9"
             ],
-           "blocks":false,
            "count": 1
         }
       ]
@@ -321,7 +335,6 @@ module Engine
               "8",
               "9"
             ],
-           "blocks": false,
            "count": 1
         }
       ]

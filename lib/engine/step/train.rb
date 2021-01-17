@@ -7,17 +7,21 @@ module Engine
   module Step
     module Train
       include EmergencyMoney
-      def can_buy_train?(entity = nil)
+      def can_buy_train?(entity = nil, _shell = nil)
         entity ||= current_entity
+        can_buy_normal?(entity)
+      end
+
+      def can_buy_normal?(entity)
         can_buy_normal = room?(entity) &&
           buying_power(entity) >= @depot.min_price(entity)
 
-        can_buy_normal || @depot
+        can_buy_normal || (discountable_trains_allowed?(entity) && @depot
           .discountable_trains_for(entity)
-          .any? { |_, _, _, price| buying_power(entity) >= price }
+          .any? { |_, _, _, price| buying_power(entity) >= price })
       end
 
-      def room?(entity)
+      def room?(entity, _shell = nil)
         if @game.class::OBSOLETE_TRAINS_COUNT_FOR_LIMIT
           entity.trains
         else
@@ -29,7 +33,15 @@ module Engine
         @game.must_buy_train?(entity)
       end
 
+      def president_may_contribute?(entity, _shell = nil)
+        must_buy_train?(entity)
+      end
+
       def should_buy_train?(entity); end
+
+      def discountable_trains_allowed?(_entity)
+        true
+      end
 
       def buy_train_action(action, entity = nil)
         entity ||= action.entity
@@ -38,28 +50,29 @@ module Engine
         price = action.price
         exchange = action.exchange
 
-        @game.queue_log! { @game.phase.buying_train!(entity, train) }
-
         # Check if the train is actually buyable in the current situation
-        @game.game_error('Not a buyable train') unless buyable_train_variants(train, entity).include?(train.variant)
-        @game.game_error('Must pay face value') if must_pay_face_value?(train, entity, price)
+        raise GameError, 'Not a buyable train' unless buyable_train_variants(train, entity).include?(train.variant)
+        raise GameError, 'Must pay face value' if must_pay_face_value?(train, entity, price)
 
         remaining = price - buying_power(entity)
-        if remaining.positive? && must_buy_train?(entity)
+        if remaining.positive? && president_may_contribute?(entity, action.shell)
           cheapest = @depot.min_depot_train
-          @game.game_error("Cannot purchase #{train.name} train: #{cheapest.name} train available") if
-            train != cheapest &&
+          cheapest_name = name_of_cheapest_variant(cheapest)
+          raise GameError, "Cannot purchase #{train.name} train: #{cheapest_name} train available" if
+            train.name != cheapest_name &&
             @game.class::EBUY_DEPOT_TRAIN_MUST_BE_CHEAPEST &&
             (!@game.class::EBUY_OTHER_VALUE || train.from_depot?)
 
-          @game.game_error('Cannot contribute funds when exchanging') if exchange
-          @game.game_error('Cannot buy for more than cost') if price > train.price
-          @game.game_error('Cannot contribute funds when affordable trains exist') if cheapest.price <= entity.cash
+          raise GameError, 'Cannot contribute funds when exchanging' if exchange
+          raise GameError, 'Cannot buy for more than cost' if price > train.price
+          raise GameError, 'Cannot contribute funds when affordable trains exist' if cheapest.price <= entity.cash
 
           player = entity.owner
           player.spend(remaining, entity)
           @log << "#{player.name} contributes #{@game.format_currency(remaining)}"
         end
+
+        @game.queue_log! { @game.phase.buying_train!(entity, train) }
 
         if exchange
           verb = "exchanges a #{exchange.name} for"
@@ -76,29 +89,31 @@ module Engine
         @game.flush_log!
 
         try_take_loan(entity, price)
-        entity.buy_train(train, price)
+        @game.buy_train(entity, train, price)
         pass! unless can_buy_train?(entity)
       end
 
-      def can_sell?(_entity, bundle)
+      def can_sell?(entity, bundle)
         return false if @game.class::MUST_SELL_IN_BLOCKS && @corporations_sold.include?(bundle.corporation)
-        return false if must_issue_before_ebuy?(current_entity)
+        return false if current_entity != entity && must_issue_before_ebuy?(current_entity)
 
         super
       end
 
       def process_sell_shares(action)
-        @last_share_sold_price = action.bundle.price_per_share
+        @last_share_sold_price = action.bundle.price_per_share unless action.entity == current_entity
         super
-        @corporations_sold << action.bundle.corporation
+        @corporations_sold << action.bundle.corporation unless action.entity == current_entity
       end
 
       def needed_cash(_entity)
         @game.class::EBUY_DEPOT_TRAIN_MUST_BE_CHEAPEST ? @depot.min_depot_price : @depot.max_depot_price
       end
 
-      def available_cash(player)
-        player.cash + current_entity.cash
+      def available_cash(entity)
+        return current_entity.cash if entity == current_entity
+
+        entity.cash + current_entity.cash
       end
 
       def buyable_trains(entity)
@@ -125,10 +140,9 @@ module Engine
       end
 
       def buyable_train_variants(train, entity)
-        return [] unless buyable_trains(entity).include?(train)
+        return [] unless buyable_trains(entity).any? { |bt| bt.variants[bt.name] }
 
         variants = train.variants.values
-
         return variants if train.owned_by_corporation?
 
         variants.reject! { |v| entity.cash < v[:price] } if must_issue_before_ebuy?(entity)
@@ -140,10 +154,6 @@ module Engine
         @last_share_sold_price = nil
         @last_share_issued_price = nil
         @corporations_sold = []
-      end
-
-      def issuable_shares
-        []
       end
 
       def must_issue_before_ebuy?(corporation)
@@ -185,8 +195,12 @@ module Engine
       private
 
       def face_value_ability?(entity)
-        entity.abilities(:train_buy) { |ability| return ability.face_value }
+        @game.abilities(entity, :train_buy) { |ability| return ability.face_value }
         false
+      end
+
+      def name_of_cheapest_variant(train)
+        train.variants.min_by { |_, v| v[:price] }.first
       end
     end
   end

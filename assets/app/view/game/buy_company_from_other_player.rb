@@ -18,12 +18,12 @@ module View
 
         max = @game.current_entity.cash.to_s.size
         input = h(:input, style: { marginBottom: '0.5rem', marginRight: '1rem' }, props: {
-          value: 1,
-          type: 'number',
-          min: 1,
-          max: max,
-          size: max,
-        })
+                    value: 1,
+                    type: 'number',
+                    min: 1,
+                    max: max,
+                    size: max,
+                  })
         children = [input]
         @game.round.active_step.purchasable_companies(@game.current_entity).each do |company|
           children << render_company_buy(input, company)
@@ -42,8 +42,11 @@ module View
             price: price,
           ))
         end
+
+        buy = -> { check_consent(company.owner, buy_company) }
+
         owner_name = company.owner.nil? ? 'the market' : company.owner.name
-        h(:button, { on: { click: buy_company } }, "Buy #{company.id} from #{owner_name}")
+        h(:button, { on: { click: buy } }, "Buy #{company.id} from #{owner_name}")
       end
     end
   end

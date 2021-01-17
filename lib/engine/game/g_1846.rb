@@ -36,6 +36,7 @@ module Engine
       MUST_EMERGENCY_ISSUE_BEFORE_EBUY = true
       HOME_TOKEN_TIMING = :float
       MUST_BUY_TRAIN = :always
+      CERT_LIMIT_COUNTS_BANKRUPTED = true
 
       ORANGE_GROUP = [
         'Lake Shore Line',
@@ -72,7 +73,7 @@ module Engine
       MEAT_REVENUE_DESC = 'Meat-Packing'
 
       TILE_COST = 20
-      EVENTS_TEXT = Base::EVENTS_TEXT.merge('remove_tokens' => ['Remove Tokens', 'Remove private company tokens']).freeze
+      EVENTS_TEXT = Base::EVENTS_TEXT.merge('remove_tokens' => ['Remove Tokens', 'Remove Steamboat and Meat Packing markers']).freeze
 
       ASSIGNMENT_TOKENS = {
         'MPC' => '/icons/1846/mpc_token.svg',
@@ -132,7 +133,7 @@ module Engine
         corporation_removal_groups.each do |group|
           remove_from_group!(group, @corporations) do |corporation|
             place_home_token(corporation)
-            corporation.abilities(:reservation) do |ability|
+            abilities(corporation, :reservation) do |ability|
               corporation.remove_ability(ability)
             end
             place_second_token(corporation)
@@ -148,7 +149,7 @@ module Engine
         @minors.each do |minor|
           train = @depot.upcoming[0]
           train.buyable = false
-          minor.buy_train(train, :free)
+          buy_train(minor, train, :free)
           hex = hex_by_id(minor.coordinates)
           hex.tile.cities[0].place_token(minor, minor.next_token, free: true)
         end
@@ -175,6 +176,19 @@ module Engine
             false
           end
         end
+      end
+
+      def operating_order
+        corporations = @corporations.select(&:floated?)
+        if @turn == 1 && (@round_num || 1) == 1
+          corporations.sort_by! do |c|
+            sp = c.share_price
+            [sp.price, sp.corporations.find_index(c)]
+          end
+        else
+          corporations.sort!
+        end
+        @minors.select(&:floated?) + corporations
       end
 
       def num_removals(_group)
@@ -336,7 +350,7 @@ module Engine
       def check_special_tile_lay(action)
         company = @last_action&.entity
         return unless special_tile_lay?(@last_action)
-        return unless (ability = company.abilities(:tile_lay))
+        return unless (ability = abilities(company, :tile_lay))
         return if action.entity == company
 
         company.remove_ability(ability)
@@ -368,9 +382,9 @@ module Engine
       end
 
       def operating_round(round_num)
+        @round_num = round_num
         Round::G1846::Operating.new(self, [
           Step::G1846::Bankrupt,
-          Step::DiscardTrain,
           Step::G1846::Assign,
           Step::SpecialToken,
           Step::SpecialTrack,
@@ -379,12 +393,13 @@ module Engine
           Step::G1846::TrackAndToken,
           Step::Route,
           Step::G1846::Dividend,
+          Step::DiscardTrain,
           Step::G1846::BuyTrain,
           [Step::G1846::BuyCompany, blocks: true],
         ], round_num: round_num)
       end
 
-      def tile_cost(tile, hex, entity)
+      def upgrade_cost(tile, hex, entity)
         [TILE_COST, super].max
       end
 
@@ -440,7 +455,7 @@ module Engine
 
       def issuable_shares(entity)
         return [] unless entity.corporation?
-        return [] unless round.steps.find { |step| step.class == Step::G1846::IssueShares }.active?
+        return [] unless round.steps.find { |step| step.instance_of?(Step::G1846::IssueShares) }.active?
 
         num_shares = entity.num_player_shares - entity.num_market_shares
         bundles = bundles_for_corporation(entity, entity)
@@ -453,7 +468,7 @@ module Engine
 
       def redeemable_shares(entity)
         return [] unless entity.corporation?
-        return [] unless round.steps.find { |step| step.class == Step::G1846::IssueShares }.active?
+        return [] unless round.steps.find { |step| step.instance_of?(Step::G1846::IssueShares) }.active?
 
         share_price = stock_market.find_share_price(entity, :right).price
 
@@ -585,6 +600,10 @@ module Engine
 
       def train_buying_power(entity)
         buying_power(entity) + potential_minor_cash(entity, allowed_trains: (1..2))
+      end
+
+      def ability_time_is_or_start?
+        active_step.is_a?(Step::G1846::Assign) || super
       end
     end
   end

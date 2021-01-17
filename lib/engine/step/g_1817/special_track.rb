@@ -17,7 +17,8 @@ module Engine
             owner = action.entity.owner
             tile_lay = step.get_tile_lay(owner)
             tile = action.tile
-            @game.game_error('Cannot lay an yellow now') if tile.color == :yellow && !tile_lay[:lay]
+            raise GameError, 'Cannot lay an yellow now' if tile.color == :yellow && !tile_lay[:lay]
+
             # Subtract 15 from the cost cancelling the terrain cost
             lay_tile(action, extra_cost: tile_lay[:cost] - 15, entity: owner, spender: owner)
             tile.hex.assign!('mine')
@@ -56,13 +57,13 @@ module Engine
             ntile = neighbor&.tile
             next false unless ntile
 
-            # The neighbouring tile must have a city or offboard
+            # The neighbouring tile must have a city or offboard or town
             # That neighbouring tile must either connect to an edge on the tile or
             # potentially be updated in future.
-            (ntile.cities&.any? ||
-             ntile.offboards&.any?) &&
-            (ntile.exits.any? { |e| e == Hex.invert(exit) } ||
-             potential_future_tiles(entity, neighbor).any?)
+            # 1817 doesn't have any coal next to towns but 1817NA does and
+            #  Marc Voyer confirmed that coal should be able to connect to the gray pre-printed town
+            (ntile.cities&.any? || ntile.offboards&.any? || ntile.towns&.any?) &&
+            (ntile.exits.any? { |e| e == Hex.invert(exit) } || potential_future_tiles(entity, neighbor).any?)
           end
         end
       end

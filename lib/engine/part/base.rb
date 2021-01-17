@@ -18,7 +18,7 @@ module Engine
       end
 
       def <=(other)
-        self.class == other.class
+        instance_of?(other.class)
       end
 
       def <=>(other)
@@ -98,6 +98,14 @@ module Engine
       end
 
       def stub?
+        false
+      end
+
+      def frame?
+        false
+      end
+
+      def partition?
         false
       end
 

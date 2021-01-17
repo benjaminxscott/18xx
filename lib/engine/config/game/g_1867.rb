@@ -26,7 +26,7 @@ module Engine
     "5": 252,
     "6": 210
   },
-  "capitalization": "full",
+  "capitalization": "incremental",
   "layout": "flat",
   "mustSellInBlocks": false,
   "locationNames": {
@@ -144,7 +144,7 @@ module Engine
     "X5": {
       "count": 1,
       "color": "brown",
-      "code": "city=revenue:70,slots:2;city=revenue:70;path=a:0,b:_0;path=a:1,b:_0;path=a:2,b:_0;path=a:4,b:_0;path=a:5,b:_0;path=a:3,b:_1;path=a:_0,b:_1;label=M"
+      "code": "city=revenue:70,slots:2;city=revenue:70;path=a:0,b:_1;path=a:1,b:_0;path=a:2,b:_0;path=a:3,b:_1;path=a:4,b:_0;path=a:5,b:_0;label=M"
     },
     "X6": {
       "count": 1,
@@ -154,7 +154,7 @@ module Engine
     "X7": {
       "count": 1,
       "color": "brown",
-      "code": "city=revenue:70,slots:2;city=revenue:70;path=a:0,b:_0;path=a:1,b:_0;path=a:3,b:_0;path=a:5,b:_0;path=a:2,b:_1;path=a:4,b:_1;label=M"
+      "code": "city=revenue:70,slots:2;city=revenue:70;path=a:0,b:_0;path=a:1,b:_0;path=a:2,b:_1;path=a:3,b:_0;path=a:4,b:_1;path=a:5,b:_0;label=M"
     },
     "X8": {
       "count": 1,
@@ -179,9 +179,9 @@ module Engine
       "120pC",
       "135pC",
       "150zC",
-      "165zC",
-      "180zC",
-      "200zCm",
+      "165zCm",
+      "180z",
+      "200z",
       "220",
       "245",
       "270",
@@ -196,7 +196,7 @@ module Engine
   ],
   "companies": [
     {
-      "name": "Hidden corporation to lock the 3 spots",
+      "name": "rules until start of phase 3",
       "sym": "3",
       "value": 3,
       "revenue": 0,
@@ -204,7 +204,6 @@ module Engine
       "abilities": [
         {
         "type": "blocks_hexes",
-        "owner_type": "player",
         "hexes": [
           "M13"
         ]
@@ -215,6 +214,7 @@ module Engine
       "sym": "C&SL",
       "value": 30,
       "revenue": 10,
+      "discount": 10,
       "desc": "No special abilities."
     },
     {
@@ -222,6 +222,7 @@ module Engine
       "sym": "NFB",
       "value": 45,
       "revenue": 15,
+      "discount": 15,
       "desc": "When owned by a corporation, they gain $10 extra revenue for each of their routes that include Buffalo",
       "abilities": [
         {
@@ -238,6 +239,7 @@ module Engine
       "sym": "MB",
       "value": 60,
       "revenue": 20,
+      "discount": 20,
       "desc": "When owned by a corporation, they gain $10 extra revenue for each of their routes that include Montreal",
       "abilities": [
         {
@@ -254,6 +256,7 @@ module Engine
       "sym": "QB",
       "value": 75,
       "revenue": 25,
+      "discount": 25,
       "desc": "When owned by a corporation, they gain $10 extra revenue for each of their routes that include Quebec",
       "abilities": [
         {
@@ -270,13 +273,14 @@ module Engine
       "sym": "SCT",
       "value": 90,
       "revenue": 30,
+      "discount": 30,
       "desc": "When owned by a corporation, they gain $10 extra revenue for each of their routes that include Detroit",
       "abilities": [
         {
         "type": "hex_bonus",
         "owner_type": "corporation",
         "hexes": [
-          "A19"
+          "A19", "A17"
         ],
         "amount": 10
       }]
@@ -288,6 +292,7 @@ module Engine
       "name": "Canadian Northern Railway",
       "logo": "1867/CNR",
       "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
@@ -301,6 +306,7 @@ module Engine
       "name": "Canadian Pacific Railway",
       "logo": "1867/CPR",
       "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
@@ -314,19 +320,21 @@ module Engine
       "name": "Chesapeake and Ohio Railway",
       "logo": "1867/CO",
       "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
         40
       ],
       "type": "major",
-      "color": "cyan"
+      "color": "blue"
     },
     {
       "sym": "GTR",
       "name": "Grand Trunk Railway",
       "logo": "1867/GTR",
       "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
@@ -340,6 +348,21 @@ module Engine
       "name": "Great Western Railway",
       "logo": "1867/GWR",
       "float_percent": 20,
+      "always_market_price": true,
+      "tokens": [
+        0,
+        20,
+        40
+      ],
+      "type": "major",
+      "color": "darkBlue"
+    },
+    {
+      "sym": "ICR",
+      "name": "Intercolonial Railway",
+      "logo": "1867/ICR",
+      "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
@@ -349,240 +372,269 @@ module Engine
       "color": "brown"
     },
     {
-      "sym": "ICR",
-      "name": "Intercolonial Railway",
-      "logo": "1867/ICR",
+      "sym": "NTR",
+      "name": "National Transcontinental Railway",
+      "logo": "1867/NTR",
       "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
         40
       ],
       "type": "major",
-      "color": "yellow"
-    },
-    {
-      "sym": "NTR",
-      "name": "National Transcontinental Railway",
-      "logo": "1867/NTR",
-      "float_percent": 20,
-      "tokens": [
-        0,
-        20,
-        40
-      ],
-      "color": "tan"
+      "color": "green"
     },
     {
       "sym": "NYC",
       "name": "New York Central Railroad",
       "logo": "1867/NYC",
       "float_percent": 20,
+      "always_market_price": true,
       "tokens": [
         0,
         20,
         40
       ],
       "type": "major",
-      "color": "black"
+      "color": "purple"
     },
     {
       "sym": "BBG",
       "name": "Buffalo, Brantford, and Goderich",
       "logo": "1867/BBG",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "type": "minor",
       "shares": [100],
       "max_ownership_percent": 100,
-      "color": "yellow"
+      "color": "gray"
     },
     {
       "sym": "BO",
       "name": "Brockville and Ottawa",
       "logo": "1867/BO",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "teal"
     },
     {
       "sym": "CS",
       "name": "Canada Southern",
       "logo": "1867/CS",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "lightBlue"
     },
     {
       "sym": "CV",
       "name": "Credit Valley Railway",
       "logo": "1867/CV",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "lightishBlue"
     },
     {
       "sym": "KP",
       "name": "Kingston and Pembroke",
       "logo": "1867/KP",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "lightishBlue"
     },
     {
       "sym": "LPS",
       "name": "London and Port Stanley",
       "logo": "1867/LPS",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "gray"
     },
     {
       "sym": "OP",
       "name": "Ottawa and Prescott",
       "logo": "1867/OP",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "magenta"
     },
     {
       "sym": "SLA",
       "name": "St. Lawrence and Atlantic",
       "logo": "1867/SLA",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "gray"
     },
     {
       "sym": "TGB",
       "name": "Toronto, Grey, and Bruce",
       "logo": "1867/TGB",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "darkBlue"
     },
     {
       "sym": "TN",
       "name": "Toronto and Nipissing",
       "logo": "1867/TN",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "yellow"
+      "color": "brown"
     },
     {
-      "sym": "TN",
+      "sym": "AE",
       "name": "Algoma Eastern Railway",
-      "logo": "1867/TN",
+      "logo": "1867/AE",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "green"
+      "color": "orange"
     },
     {
       "sym": "CA",
       "name": "Canada Atlantic Railway",
       "logo": "1867/CA",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "green"
+      "color": "purple"
     },
     {
-      "sym": "NYO",
+      "sym": "NO",
       "name": "New York and Ottawa",
-      "logo": "1867/NYO",
+      "logo": "1867/NO",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "green"
+      "color": "orange"
     },
     {
       "sym": "PM",
       "name": "Pere Marquette Railway",
       "logo": "1867/PM",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "green"
+      "color": "lightBlue"
     },
     {
       "sym": "QLS",
       "name": "Quebec and Lake St. John",
       "logo": "1867/QLS",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "green"
+      "color": "blue"
     },
     {
       "sym": "THB",
       "name": "Toronto, Hamilton and Buffalo",
       "logo": "1867/THB",
+      "float_percent": 100,
+      "always_market_price": true,
       "tokens": [
         0
       ],
       "shares": [100],
       "max_ownership_percent": 100,
       "type": "minor",
-      "color": "green"
+      "color": "orange"
     },
     {
       "sym": "CN",
       "name": "Canadian National",
       "logo": "1867/CN",
       "tokens": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         0
       ],
       "color": "white"
@@ -591,14 +643,36 @@ module Engine
   "trains": [
     {
       "name": "2",
-      "distance": 2,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 2,
+          "visit": 2
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 100,
       "rusts_on": "4",
       "num": 10
     },
     {
       "name": "3",
-      "distance": 3,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 3,
+          "visit": 3
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 225,
       "rusts_on": "6",
       "num": 7,
@@ -608,17 +682,40 @@ module Engine
     },
     {
       "name": "4",
-      "distance": 4,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 4,
+          "visit": 4
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 350,
       "rusts_on": "8",
       "num": 4,
       "events":[
-        {"type": "majors_can_ipo"}
+        {"type": "majors_can_ipo"},
+        {"type": "trainless_nationalization"}
       ]
     },
     {
       "name": "5",
-      "distance": 5,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 5,
+          "visit": 5
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 550,
       "num": 4,
       "events":[
@@ -628,43 +725,126 @@ module Engine
     },
     {
       "name": "6",
-      "distance": 6,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 6,
+          "visit": 6
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 650,
       "num": 2,
       "events":[
-        {"type": "close_companies"}
+        {"type": "nationalize_companies"},
+        {"type": "trainless_nationalization"}
       ]
     },
     {
       "name": "7",
-      "distance": 7,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 7,
+          "visit": 7
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 800,
       "num": 2
     },
     {
       "name": "8",
-      "distance": 8,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 8,
+          "visit": 8
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
       "price": 1000,
       "num": 6,
       "events": [
         {"type": "signal_end_game"},
-        {"type": "minors_nationalized"}
-
-      ]
+        {"type": "minors_nationalized"},
+        {"type": "trainless_nationalization"},
+        {"type": "train_trade_allowed"}
+      ],
+      "discount": {
+        "5": 275,
+        "6": 325,
+        "7": 400,
+        "8": 500,
+        "2+2": 300,
+        "5+5E": 750
+      }
     },
     {
       "name": "2+2",
-      "distance": 2,
+      "distance": [
+        {
+          "nodes": ["city", "offboard"],
+          "pay": 2,
+          "visit": 2
+        },
+        {
+          "nodes": ["town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
+      "multiplier":2,
       "price": 600,
-      "num": 6,
-      "available_on": "8"
+      "num": 20,
+      "available_on": "8",
+      "discount": {
+        "5": 275,
+        "6": 325,
+        "7": 400,
+        "8": 500,
+        "2+2": 300,
+        "5+5E": 750
+      }
     },
     {
       "name": "5+5E",
-      "distance": 5,
+      "distance": [
+        {
+          "nodes": ["offboard"],
+          "pay": 5,
+          "visit": 5
+        },
+        {
+          "nodes": ["city", "town"],
+          "pay": 0,
+          "visit": 99
+        }
+      ],
+      "multiplier": 2,
       "price": 1500,
-      "num": 7,
-      "available_on": "8"
+      "num": 20,
+      "available_on": "8",
+      "discount": {
+        "5": 275,
+        "6": 325,
+        "7": 400,
+        "8": 500,
+        "2+2": 300,
+        "5+5E": 750
+      }
     }
   ],
   "hexes": {
@@ -760,9 +940,11 @@ module Engine
         "E13",
         "E15",
         "C17",
-        "G15",
         "I15",
         "N12"
+      ],
+      "city=revenue:0;stub=edge:1": [
+        "G15"
       ],
       "city=revenue:0;label=Y": [
         "E17",
@@ -772,7 +954,7 @@ module Engine
       "city=revenue:0;label=Y;label=O;upgrade=cost:20,terrain:water": [
         "J12"
       ],
-      "town=revenue:0;border=edge:5,type:water,cost:80": [
+      "town=revenue:0;border=edge:5,type:water,cost:80;stub=edge:0": [
         "L10"
       ],
       "town=revenue:0;border=edge:0,type:impassable": [
@@ -782,8 +964,10 @@ module Engine
         "C15",
         "B18",
         "H10",
-        "K13",
         "M13"
+      ],
+      "town=revenue:0;stub=edge:4": [
+        "K13"
       ]
     },
     "gray": {

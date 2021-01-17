@@ -32,7 +32,7 @@ module Engine
       bundle = shares.is_a?(ShareBundle) ? shares : ShareBundle.new(shares)
 
       if !@game.class::CORPORATE_BUY_SHARE_ALLOW_BUY_FROM_PRESIDENT && shares.owner.player?
-        @game.game_error('Cannot buy share from player')
+        raise GameError, 'Cannot buy share from player'
       end
 
       corporation = bundle.corporation
@@ -48,15 +48,17 @@ module Engine
                 "#{@game.format_currency(par_price)}"
       end
 
-      share_str = "a #{bundle.percent}% share of #{corporation.name}"
+      share_str = "a #{bundle.percent}% share "
+      share_str += "of #{corporation.name}" unless entity == corporation
       incremental = corporation.capitalization == :incremental
 
-      from = 'the market'
-      if bundle.owner.corporation?
-        from = "the #{@game.ipo_name(corporation)}"
-      elsif bundle.owner.player?
-        from = bundle.owner.name
-      end
+      from = if bundle.owner.corporation?
+               (bundle.owner == bundle.corporation ? "the #{@game.ipo_name(corporation)}" : bundle.owner.name)
+             elsif bundle.owner.player?
+               bundle.owner.name
+             else
+               'the market'
+             end
 
       if exchange
         price = exchange_price || 0
@@ -74,7 +76,8 @@ module Engine
       else
         price -= swap.price if swap
         swap_text = swap ? " + swap of a #{swap.percent}% share" : ''
-        @log << "#{entity.name} buys #{share_str} "\
+        verb = entity == corporation ? 'redeems' : 'buys'
+        @log << "#{entity.name} #{verb} #{share_str} "\
           "from #{from} "\
           "for #{@game.format_currency(price)}#{swap_text}"
       end
@@ -86,7 +89,7 @@ module Engine
           bundle,
           entity,
           spender: entity == self ? @bank : entity,
-          receiver: incremental && bundle.owner.corporation? ? bundle.owner : @bank,
+          receiver: (incremental && bundle.owner.corporation?) || bundle.owner.player? ? bundle.owner : @bank,
           price: price,
           swap: swap,
           swap_to_entity: swap ? self : nil
@@ -107,7 +110,7 @@ module Engine
       swap_to_entity = swap ? entity : nil
 
       @log << "#{entity.name} #{verb} #{num_presentation(bundle)} " \
-        "#{bundle.corporation.name} and receives #{@game.format_currency(price)}#{swap_text}"
+        "of #{bundle.corporation.name} and receives #{@game.format_currency(price)}#{swap_text}"
 
       transfer_shares(bundle,
                       self,
@@ -161,12 +164,9 @@ module Engine
       return unless allow_president_change
 
       # check if we need to change presidency
-      max_shares = corporation.player_share_holders.values.max
+      max_shares = presidency_check_shares(corporation).values.max
 
-      majority_share_holders = corporation
-        .player_share_holders
-        .select { |_, p| p == max_shares }
-        .keys
+      majority_share_holders = presidency_check_shares(corporation).select { |_, p| p == max_shares }.keys
 
       return if majority_share_holders.any? { |player| player == previous_president }
 
@@ -204,15 +204,23 @@ module Engine
 
       num_shares = presidents_share.percent / corporation.share_percent
 
-      possible_reorder(president.shares_of(corporation)).take(num_shares).each { |s| move_share(s, swap_to) }
+      shares_for_presidency_swap(possible_reorder(president.shares_of(corporation)), num_shares).each do |s|
+        move_share(s, swap_to)
+      end
       move_share(presidents_share, president)
+    end
+
+    def presidency_check_shares(corporation)
+      corporation.player_share_holders
+    end
+
+    def shares_for_presidency_swap(shares, num_shares)
+      shares.take(num_shares)
     end
 
     def possible_reorder(shares)
       shares
     end
-
-    private
 
     def distance(player_a, player_b)
       return 0 if !player_a || !player_b
@@ -223,6 +231,8 @@ module Engine
       a < b ? b - a : b - (a - entities.size)
     end
 
+    private
+
     def move_share(share, to_entity)
       corporation = share.corporation
       share.owner.shares_by_corporation[corporation].delete(share)
@@ -232,9 +242,9 @@ module Engine
 
     def num_presentation(bundle)
       num_shares = bundle.num_shares
-      return "a #{bundle.percent}% share of" if num_shares == 1
+      return "a #{bundle.percent}% share" if num_shares == 1
 
-      "#{num_shares} shares of"
+      "#{num_shares} shares"
     end
   end
 end

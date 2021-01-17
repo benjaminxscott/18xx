@@ -12,6 +12,8 @@ module View
       needs :action, default: Engine::Action::SellShares
 
       def render
+        step = @game.round.active_step
+
         buttons = @game.sellable_bundles(@player, @corporation).map do |bundle|
           sell = lambda do
             process_action(@action.new(
@@ -21,6 +23,7 @@ module View
               percent: bundle.percent,
             ))
           end
+          double_cert = bundle.shares.any?(&:last_cert) ? '[d]' : ''
           props = {
             style: {
               padding: '0.2rem 0',
@@ -31,21 +34,24 @@ module View
           h(
             'button.sell_share',
             props,
-            "Sell #{share_presentation(bundle)} (#{@game.format_currency(bundle.price)})"
+            "Sell #{share_presentation(bundle)}#{double_cert} (#{@game.format_currency(bundle.price)})"
           )
         end
 
-        step = @game.round.active_step
         @game.bundles_for_corporation(@player, @corporation).map do |bundle|
           pool_shares = @game.share_pool.shares_by_corporation[@corporation].group_by(&:percent).values.map(&:first)
           pool_shares.each do |pool_share|
+            next unless step.respond_to?(:swap_sell)
             next unless (swap_sell = step.swap_sell(@player, @corporation, bundle, pool_share))
 
             buttons << sell_with_swap(@player, bundle, swap_sell)
           end
         end
 
-        h(:div, buttons.compact)
+        buttons = buttons.compact
+        return h(:div, buttons) if buttons.any?
+
+        nil
       end
 
       private

@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
+require_relative '../helper/type'
 require_relative '../passer'
 
 module Engine
   module Step
     class Base
+      include Helper::Type
       include Passer
       attr_accessor :acted
 
@@ -73,7 +75,7 @@ module Engine
       end
 
       def blocking?
-        blocks? && current_actions.any?
+        blocks? && !current_actions.empty?
       end
 
       def blocks?
@@ -111,6 +113,10 @@ module Engine
       end
 
       def try_take_loan(entity, price); end
+
+      def inspect
+        "<#{self.class.name}>"
+      end
     end
   end
 end

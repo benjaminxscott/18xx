@@ -1,9 +1,12 @@
 # frozen_string_literal: true
 
-require_relative 'action/buy_train.rb'
+require_relative 'action/buy_train'
+require_relative 'entity'
 
 module Engine
   class Depot
+    include Entity
+
     attr_reader :trains, :upcoming, :discarded
 
     def initialize(trains, game)
@@ -33,9 +36,10 @@ module Engine
     def reclaim_train(train)
       return unless train.owner
 
-      train.owner.remove_train(train)
+      @game.remove_train(train)
       train.owner = self
       @discarded << train if @game.class::DISCARDED_TRAINS == :discard && !train.obsolete
+      @depot_trains = nil
     end
 
     def min_price(corporation)
@@ -61,21 +65,25 @@ module Engine
     def unshift_train(train)
       train.owner = self
       @upcoming.unshift(train)
+      @depot_trains = nil
     end
 
     def remove_train(train)
       @upcoming.delete(train)
       @discarded.delete(train)
+      @depot_trains = nil
     end
 
     def add_train(train)
       train.owner = self
       @trains << train
       @upcoming << train
+      @depot_trains = nil
     end
 
-    def depot_trains
-      [
+    def depot_trains(clear: false)
+      @depot_trains = nil if clear
+      @depot_trains ||= [
         @upcoming.first,
         *@upcoming.select { |t| @game.phase.available?(t.available_on) },
       ].compact.uniq(&:name) + @discarded.uniq(&:name)

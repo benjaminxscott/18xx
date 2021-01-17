@@ -14,6 +14,7 @@ module View
       needs :game
       needs :display, default: 'inline-block'
       needs :show_hidden, default: false
+      needs :hide_logo, store: true, default: false
 
       def render
         card_style = {
@@ -100,7 +101,7 @@ module View
         trs.concat([
           h(:tr, [
             h(:td, 'Value'),
-            h('td.right', @game.format_currency(@player.value)),
+            h('td.right', @game.format_currency(@game.player_value(@player))),
           ]),
           h(:tr, [
             h(:td, 'Liquidity'),
@@ -116,7 +117,7 @@ module View
         end
         trs << h(:tr, [
           h(:td, 'Certs'),
-          h('td.right', td_cert_props, "#{num_certs}/#{cert_limit}"),
+          h('td.right', td_cert_props, @game.show_game_cert_limit? ? "#{num_certs}/#{cert_limit}" : num_certs.to_s),
         ])
 
         priority_props = {
@@ -181,12 +182,13 @@ module View
           },
         }
 
+        children = []
+        children << h('td.center', td_props, [h(:div, div_props, [h(:img, logo_props)])]) unless @hide_logo
+
         president_marker = corporation.president?(@player) ? '*' : ''
-        h('tr.row', [
-          h('td.center', td_props, [h(:div, div_props, [h(:img, logo_props)])]),
-          h(:td, td_props, corporation.name + president_marker),
-          h('td.right', td_props, "#{shares.sum(&:percent)}%"),
-        ])
+        children << h(:td, td_props, corporation.name + president_marker)
+        children << h('td.right', td_props, "#{shares.sum(&:percent)}%")
+        h('tr.row', children)
       end
     end
   end

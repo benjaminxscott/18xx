@@ -3,7 +3,6 @@
 require 'lib/color'
 require 'lib/settings'
 require 'view/game/actionable'
-require 'view/game/undo_and_pass'
 
 module View
   module Game
@@ -12,8 +11,13 @@ module View
       include Lib::Color
       include Lib::Settings
 
+      needs :last_entity, store: true, default: nil
+      needs :last_round, store: true, default: nil
+      needs :last_company, store: true, default: nil
       needs :routes, store: true, default: []
       needs :selected_route, store: true, default: nil
+      needs :selected_company, default: nil, store: true
+      needs :abilities, store: true, default: nil
 
       # Get routes that have a length greater than zero
       # Due to the way this and the map hook up routes needs to have
@@ -27,19 +31,48 @@ module View
         operating = @game.round.current_entity.operating_history
         last_run = operating[operating.keys.max]&.routes
         return [] unless last_run
+        return [] if @abilities&.any?
 
         halts = operating[operating.keys.max]&.halts
         last_run.map do |train, connections|
           next unless trains.include?(train)
 
           # A future enhancement to this could be to find trains and move the routes over
-          @routes << Engine::Route.new(@game, @game.phase, train, connection_hexes: connections,
-                                                                  routes: @routes, halts: halts[train])
+          @routes << Engine::Route.new(
+            @game,
+            @game.phase,
+            train,
+            connection_hexes: connections,
+            routes: @routes,
+            halts: halts[train],
+          )
         end.compact
       end
 
       def render
-        trains = @game.route_trains(@game.round.current_entity)
+        current_entity = @game.round.current_entity
+        if @selected_company&.owner == current_entity
+          ability = @game.abilities(@selected_company, :hex_bonus, time: 'route')
+          # Clean routes if we select company, but just when we select
+          unless @last_company
+            cleanup
+            store(:last_company, @selected_company, skip: true)
+          end
+          store(:abilities, ability ? [ability.type] : nil, skip: true)
+        else
+          cleanup if @last_company
+          store(:last_company, nil, skip: true)
+          store(:abilities, nil, skip: true)
+        end
+
+        # this is needed for the rare case when moving directly between run_routes steps
+        if @last_entity != current_entity || @last_round != @game.round
+          cleanup
+          store(:last_entity, current_entity, skip: true)
+          store(:last_round, @game.round, skip: true)
+        end
+
+        trains = @game.route_trains(current_entity)
 
         train_help =
           if (helps = @game.train_help(trains)).any?
@@ -56,7 +89,7 @@ module View
         end
 
         if !@selected_route && (first_train = trains[0])
-          route = Engine::Route.new(@game, @game.phase, first_train, routes: @routes)
+          route = Engine::Route.new(@game, @game.phase, first_train, abilities: @abilities, routes: @routes)
           @routes << route
           store(:routes, @routes, skip: true)
           store(:selected_route, route, skip: true)
@@ -66,7 +99,7 @@ module View
         trains = trains.flat_map do |train|
           onclick = lambda do
             unless (route = @routes.find { |t| t.train == train })
-              route = Engine::Route.new(@game, @game.phase, train, routes: @routes)
+              route = Engine::Route.new(@game, @game.phase, train, abilities: @abilities, routes: @routes)
               @routes << route
               store(:routes, @routes)
             end
@@ -90,10 +123,10 @@ module View
           children = []
           if route
             revenue, invalid = begin
-                                 [@game.format_currency(route.revenue), nil]
-                               rescue Engine::GameError => e
-                                 ['N/A', e.to_s]
-                               end
+              [@game.format_currency(route.revenue), nil]
+            rescue Engine::GameError => e
+              ['N/A', e.to_s]
+            end
 
             bg_color = route_prop(@routes.index(route), :color)
             style[:backgroundColor] = bg_color
@@ -109,7 +142,7 @@ module View
             else
               children << h('td.right', td_props, revenue)
             end
-            children << h(:td, route.hexes.map(&:name).join(' '))
+            children << h(:td, route.revenue_str)
           elsif !selected
             style[:border] = '1px solid'
             style[:padding] = '5px 8px'
@@ -219,12 +252,13 @@ module View
         }
 
         revenue = begin
-                    @game.format_currency(@game.routes_revenue(active_routes))
-                  rescue Engine::GameError
-                    '(Invalid Route)'
-                  end
+          @game.format_currency(@game.routes_revenue(active_routes))
+        rescue Engine::GameError
+          '(Invalid Route)'
+        end
 
-        subsidy = render_halts ? ' + ' + @game.format_currency(@game.routes_subsidy(active_routes)) : ''
+        render_halts ||= @game.respond_to?(:routes_subsidy) && @game.routes_subsidy(active_routes).positive?
+        subsidy = render_halts ? " + #{@game.format_currency(@game.routes_subsidy(active_routes))} (subsidy)" : ''
         h(:div, { style: { overflow: 'auto', marginBottom: '1rem' } }, [
           h(:div, [
             h('button.small', { on: { click: clear } }, 'Clear Train'),

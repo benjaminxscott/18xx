@@ -26,6 +26,10 @@ module Engine
           takeover_in_progress
         end
 
+        def active_entities
+          [current_entity]
+        end
+
         def current_entity
           pending_takeover[:destination_corp]
         end
@@ -72,12 +76,13 @@ module Engine
           entity = action.entity
 
           unless available_hex(entity, action.city.hex)
-            @game.game_error("Cannot place a token on #{action.city.hex.name}")
+            raise GameError, "Cannot place a token on #{action.city.hex.name}"
           end
 
           old_token = taken_entity.tokens.find { |t| t.city == action.city }
           new_token = entity.unplaced_tokens.last
-          old_token.swap!(new_token)
+          old_token.remove!
+          action.city.exchange_token(new_token)
           pending_takeover[:place_count] -= 1
 
           @game.log << "#{current_entity.name} replaces #{taken_entity.name} token on #{action.city.hex.name}"
@@ -93,24 +98,13 @@ module Engine
           return true if current_entity
 
           @game.corporations.dup.each do |source|
-            corporation = find_takeover_corporation(source)
-            execute_takeover!(source, corporation) if corporation
+            next unless source&.owner&.corporation?
+
+            execute_takeover!(source, source.owner)
             return true if current_entity
           end
 
           false
-        end
-
-        def find_takeover_corporation(source)
-          return unless source.floated?
-
-          president_share_count = source.owner.num_shares_of(source)
-          source.corporate_share_holders.each do |c_s_h|
-            corporation, corporate_share_percent = c_s_h
-            return corporation if president_share_count < (corporate_share_percent / source.share_percent)
-          end
-
-          nil
         end
 
         def execute_takeover!(source, destination)
@@ -160,20 +154,20 @@ module Engine
           return if source.placed_tokens.empty?
           return if destination.unplaced_tokens.empty?
 
-          destination_cities = destination.tokens.map(&:city).compact
+          destination_hexes = destination.tokens.map { |token| token&.city&.hex }.compact
 
           source.tokens.each do |token|
             next unless token.used
 
             token.city&.remove_reservation!(source)
-            token.remove! if destination_cities.include?(token.city)
+            token.remove! if destination_hexes.include?(token.city.hex)
           end
         end
 
         def transfer_companies(source, destination)
           return unless source.companies.any?
 
-          transferred = source.transfer(:companies, destination)
+          transferred = @game.transfer(:companies, source, destination)
 
           @game.log << "#{destination.name} takes #{transferred.map(&:name).join(', ')} from #{source.name}"
         end
@@ -181,7 +175,8 @@ module Engine
         def transfer_trains(source, destination)
           return unless source.trains.any?
 
-          transferred = source.transfer(:trains, destination)
+          source.trains.each { |train| train.operated = false }
+          transferred = @game.transfer(:trains, source, destination)
 
           @game.log << "#{destination.name} takes #{transferred.map(&:name).join(', ')}"\
                        " train#{transferred.one? ? '' : 's'} from #{source.name}"
@@ -217,7 +212,7 @@ module Engine
         def payout_shareholders(source, payout)
           share_percent = source.share_percent
 
-          payout_string = source.share_holders.map do |s_h|
+          payouts = source.share_holders.map do |s_h|
             entity, percent = s_h
             next if source == entity
 
@@ -228,9 +223,9 @@ module Engine
 
             source.spend(total_payout, entity)
             "#{@game.format_currency(total_payout)} to #{entity.name}"
-          end.compact.join(', ')
+          end.compact
 
-          @game.log << "#{source.name} distributes #{payout_string}"
+          @game.log << "#{source.name} distributes #{payouts.join(', ')}" if payouts.any?
         end
 
         def increase_train_limit(source, destination)
@@ -254,6 +249,10 @@ module Engine
 
         def close_corporation(entity)
           @game.close_corporation(entity)
+          if entity == @game.dsng && !@game.drgr&.closed?
+            @game.log << "#{@game.drgr.name} closes due to takeover of #{@game.dsng.name}"
+            @game.drgr.close!
+          end
           entity.close!
           @round.pending_takeover = nil
         end

@@ -6,8 +6,7 @@ module Engine
   module Round
     module G1817
       class Acquisition < Round::Merger
-        attr_accessor :offering
-        attr_accessor :cash_crisis_player
+        attr_accessor :offering, :cash_crisis_player
 
         def self.short_name
           'AR'
@@ -31,7 +30,7 @@ module Engine
                         .corporations
                         .select(&:floated?)
                         .sort.reverse
-          @game.players.select { |p| p.presidencies.any? }
+          @game.players.reject { |p| p.presidencies.empty? }
         end
 
         attr_reader :entities

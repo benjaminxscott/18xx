@@ -16,6 +16,9 @@ module View
 
       SIZE = 100
 
+      FRAME_COLOR_STROKE_WIDTH = 10
+      FRAME_COLOR_POINTS = Lib::Hex.points(scale: 1 - ((FRAME_COLOR_STROKE_WIDTH + 1) / 2) / Lib::Hex::Y_B).freeze
+
       LAYOUT = {
         flat: [SIZE * 3 / 2, SIZE * Math.sqrt(3) / 2],
         pointy: [SIZE * Math.sqrt(3) / 2, SIZE * 3 / 2],
@@ -34,6 +37,7 @@ module View
       needs :show_coords, default: nil
       needs :show_location_names, default: true
       needs :routes, default: []
+      needs :start_pos, default: [1, 1]
 
       def render
         return nil if @hex.empty
@@ -57,6 +61,15 @@ module View
         end
         children << h(TriangularGrid) if Lib::Params['grid']
         children << h(TileUnavailable, unavailable: @unavailable, layout: @hex.layout) if @unavailable
+
+        if (color = @tile&.frame&.color)
+          attrs = {
+            stroke: color,
+            'stroke-width': FRAME_COLOR_STROKE_WIDTH,
+            points: FRAME_COLOR_POINTS,
+          }
+          children.insert(1, h(:polygon, attrs: attrs))
+        end
 
         props = {
           key: @hex.id,
@@ -98,13 +111,13 @@ module View
         "translate(#{x}, #{y})"
       end
 
-      def self.coordinates(hex)
+      def self.coordinates(hex, start_pos = [1, 1])
         t_x, t_y = LAYOUT[hex.layout]
-        [(t_x * hex.x + SIZE).round(2), (t_y * hex.y + SIZE).round(2)]
+        [(t_x * (hex.x - start_pos[0] + 1) + SIZE).round(2), (t_y * (hex.y - start_pos[1] + 1) + SIZE).round(2)]
       end
 
       def coordinates
-        self.class.coordinates(@hex)
+        self.class.coordinates(@hex, @start_pos)
       end
 
       def transform

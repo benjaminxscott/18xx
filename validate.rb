@@ -19,8 +19,8 @@ def run_game(game, actions = nil)
   begin
     $total += 1
     time = Time.now
-    players = game.ordered_players.map { |u| [u.id, u.name] }.to_h
-    engine = Engine::GAMES_BY_TITLE[game.title].new(players, id: game.id, actions: actions, optional_rules: game.settings['optional_rules'] || [])
+    engine = Engine::Game.load(game).maybe_raise!
+
     time = Time.now - time
     $total_time += time
     data['finished']=true
@@ -104,11 +104,12 @@ def revalidate_broken(filename)
   File.write("revalidate.json", JSON.pretty_generate(data))
 end
 
-def validate_json(filename)
-  data = JSON.parse(File.read(filename))
-  players = data['players'].map { |p| [p['id'] || p['name'], p['name']] }.to_h
-  engine = Engine::GAMES_BY_TITLE[data['title']]
-  engine.new(players, id: data['id'], actions: data['actions'], optional_rules: data.dig('settings', 'optional_rules') || [])
+def validate_json(filename, strict: false)
+  game = Engine::Game.load(filename, strict: strict)
+  if game.exception
+    puts game.broken_action.to_h
+  end
+  game.maybe_raise!
 end
 
 def pin_games(pin_version, game_ids)

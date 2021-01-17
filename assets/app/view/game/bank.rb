@@ -68,8 +68,14 @@ module View
             h('td.right', @game.format_currency(@game.round.active_step.seed_money)),
           ])
         end
+        if @game.respond_to?(:unstarted_corporation_summary)
+          trs << h(:tr, [
+            h(:td, 'Unstarted corporations'),
+            h('td.right', @game.unstarted_corporation_summary),
+          ])
+        end
 
-        return unless trs.any?
+        return h(:div) if trs.empty?
 
         h('div.bank.card', [
           h('div.title.nowrap', title_props, [h(:em, 'The Bank')]),

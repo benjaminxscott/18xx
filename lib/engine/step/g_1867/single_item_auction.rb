@@ -43,18 +43,29 @@ module Engine
           if winning_bid
             [@active_bidders[(@active_bidders.index(winning_bid.entity) + 1) % @active_bidders.size]]
           else
-            [@active_bidders.first]
+            [@active_bidders.reject { |e| @declined_bids.include?(e) }&.first]
           end
         end
 
         def process_pass(action)
           entity = action.entity
 
-          pass_auction(entity)
+          winning_bid = highest_bid(@auctioning)
+          if winning_bid || @dutch_mode
+            pass_auction(entity)
+          else
+            @game.log << "#{entity.name} declined to bid on #{@auctioning.name}"
+            @declined_bids << entity
+            if @declined_bids.size == @active_bidders.size
+              enter_dutch(@auctioning)
+              @declined_bids = []
+            end
+          end
           resolve_bids
         end
 
         def process_bid(action)
+          @declined_bids = []
           add_bid(action)
         end
 
@@ -64,9 +75,9 @@ module Engine
 
         def setup
           setup_auction
-          @companies = @game.companies.reject { |c| c.id == '3' }.sort_by(&:value)
+          @companies = @game.companies.reject { |c| c.id == '3' || c.owner&.player? }.sort_by(&:value)
 
-          auction_entity_log(@companies.first)
+          auction_entity_log(@companies.first) unless @companies.empty?
         end
 
         def starting_bid(company)
@@ -75,6 +86,7 @@ module Engine
 
         def auction_entity_log(entity)
           @dutch_mode = false
+          @declined_bids = []
           @game.log << "#{entity.name} is up for auction, minimum bid is #{@game.format_currency(min_bid(entity))}"
           auction_entity(entity)
         end
@@ -113,16 +125,17 @@ module Engine
           resolve_bids
         end
 
-        def win_bid(winner, company)
-          unless winner
-            # Switch to dutch auction
-            tense = @dutch_mode ? 'bought' : 'bid on'
-            company.discount += 5
-            @log << "Nobody #{tense} #{company.name}, reducing price to #{@game.format_currency(company.min_bid)}"
-            @dutch_mode = true
+        def enter_dutch(company)
+          # Switch to dutch auction
+          tense = @dutch_mode ? 'bought' : 'bid on'
+          company.discount += 5
+          @log << "Nobody #{tense} #{company.name}, reducing price to #{@game.format_currency(company.min_bid)}"
+          @dutch_mode = true
+        end
 
-            return
-          end
+        def win_bid(winner, company)
+          return enter_dutch(company) unless winner
+
           player = winner.entity
           company = winner.company
           price = winner.price
@@ -136,6 +149,9 @@ module Engine
         end
 
         def post_win_bid(winner, company)
+          # Avoid startup infinite recursion
+          return if @game.players.empty?
+
           if winner
             @round.goto_entity!(winner.entity)
             @round.next_entity_index!

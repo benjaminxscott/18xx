@@ -12,7 +12,12 @@ module Engine
           if (entity = @entities[@entity_index]).receivership? || @game.insolvent?(entity)
             case action
             when Engine::Action::RunRoutes
-              process_action(Engine::Action::Dividend.new(entity, kind: 'withhold'))
+              process_action(Engine::Action::Dividend.new(entity, kind: 'withhold')) if action.routes.any?
+            end
+          elsif @game.nationalization
+            case action
+            when Engine::Action::RunRoutes
+              process_action(Engine::Action::Dividend.new(entity, kind: 'payout'))
             end
           end
 
@@ -27,7 +32,7 @@ module Engine
         def after_operating(entity)
           return unless entity.corporation?
 
-          if entity.trains.empty? && @game.can_run_route?(entity)
+          if entity.trains.empty? && @game.legal_route?(entity)
             @game.make_insolvent(entity)
           elsif !entity.trains.empty?
             @game.clear_insolvent(entity)

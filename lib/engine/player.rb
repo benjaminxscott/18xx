@@ -35,8 +35,12 @@ module Engine
       self
     end
 
+    def corporation
+      nil
+    end
+
     def ==(other)
-      @name == other&.name
+      other&.player? && (@name == other&.name)
     end
 
     def player?

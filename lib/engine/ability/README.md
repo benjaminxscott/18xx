@@ -17,11 +17,30 @@ These attributes may be set for all ability types
   order for the ability to be active. Either "player" or
   "corporation".
 - `remove`: Game phase when this ability is removed
-- `when`: The game step or phase when this ability is active
 - `count`: The number of times the ability may be used
 - `count_per_or`: The number of times the ability may be used in each OR; the
   property `count_this_or` is reset to 0 at the start of each OR and increments
   each time the ability is used
+- `on_phase`: The phase when this ability is active
+- `when`: (string or array of strings) The game steps or special time descriptor
+  when this ability is active. If no values are provided, this ability is
+  considered to be "passive", i.e., its effect applies without the user needinng
+  to click on the abilities button to activate it. For an ability to be included
+  in an `abilities()` call, either a `time` kwarg or the name of the current
+  game phase class must match (one of) the ability's `when` string(s). Examples:
+    - `any`: usable at any time during the game
+    - `buying_train`: train buying step
+    - `Track`, `TrackAndToken`: track-laying step; if normal track lays are used
+      up, but there is still a `Track` ability, then the active step will not
+      pass on to the next step automatically
+    - `special_track`: make the ability available to the SpecialTrack step
+    - `sold`: when the company is bought from a player by a corporation
+    - `bought_train`: when the owning corporation has bought a train; generally
+      used with `close` abilities
+    - `other_or`: usable during the OR turn of another corporation
+    - `owning_corp_or_turn`: usable at any point during the owning corporation's OR turn
+    - `never`: use with `close` abilities to prevent a company from closing
+    - `has_train`: when the owning corporation owns at least one train
 
 ## additional_token
 
@@ -60,6 +79,16 @@ Designate hexes which are blocked by this ability. Use the
 company is bought in by a corporation.
 
 - `hexes`: An array of hex coordinates that are blocked
+
+## blocks_partition
+
+Designate a type of partition which this ability disallows crossing.
+A partition separates an hex in 2 halves. Use the `owner_type: "player"`
+to specify that the blocking ends when the company is bought in by a
+corporation.
+
+- `partition_type`: The name of the partition type that is to be
+  blocked, akin to terrain and border types.
 
 ## close
 
@@ -145,7 +174,7 @@ Lay a tile and place a station token without connectivity
 Discount the cost for laying tiles in the specified terrain type
 
 - `discount`: Discount amount
-- `terrain`: Type of terrain for which discount is provided
+- `terrain`: If set, type of terrain for which discount is provided, otherwise the discount is off the total cost
 - `hexes`: If not specified, all applicable hexes qualifies for
   the discount. If specified, only specified hexes qualify
 
@@ -172,13 +201,16 @@ normal tile lay actions.
   labels and city count. Default true.
 - `connect`: If true, and `count` is greater than 1, tiles laid must
   connect to each other. Default true.
-- `blocks`: If true and `count` is greater than 1, all tile lays must
-  be performed at once.
+- `blocks`: If true and `when` is `sold`, then the step
+  `TrackLayWhenCompanySold` will require a tile lay. Default false.
 - `reachable`: If true, when tile layed, a check is done if one of the
   controlling corporation's station tokens are reachable; if not a game
   error is triggered. Default false.
-- `must_lay_together`: If true, all the tile lays must happen at the same
-  time. Default false.
+- `must_lay_together`: If true and `count` is greater than 1, all the tile lays
+  must happen at the same time. Default false.
+- `must_lay_all`: If true and `count` is greater than 1 and `must_lay_together`
+  is true, all the tile lays must be used; if false, then some tile lays may be
+  forfeited. Default false.
 
 ## train_buy
 
@@ -187,12 +219,22 @@ Modify train buy in some way.
 - `face_value`: If true, any inter corporation train buy must be at
   face value. Default false.
 
+## train_discount
+
+Discount the train buy cost. The `count` attribute specify how many times the discount can be used.
+
+- `discount`: Discount amount. If > 1 this is an absolute amount. If 0 < amount < 1 it is the fraction, e.g. 0.75 is a 75% discount.
+- `trains`: An array of all train names that the discount applies to.
+- `closed_when_used_up`: This ability has a count that is decreased each time it is used. If this attribute is true the private is closed when count reaches zero, if false the private
+remains open but the discount can no longer be used. Default true.
+
 ## train_limit
 
 Modify train limit in some way.
 
 - `increase`: If positive, this will increase the train limit with this
   amount in all faces. Default 0.
+- `constant`: If positive, this is the train limit used. Default 0.
 
 ## token
 

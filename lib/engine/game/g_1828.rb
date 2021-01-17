@@ -3,6 +3,8 @@
 require_relative '../config/game/g_1828'
 require_relative 'base'
 require_relative '../g_1828/stock_market'
+require_relative '../g_1828/system'
+require_relative '../g_1828/shell'
 
 module Engine
   module Game
@@ -27,7 +29,7 @@ module Engine
 
       load_from_json(Config::Game::G1828::JSON)
 
-      DEV_STAGE = :prealpha
+      DEV_STAGE = :alpha
 
       GAME_LOCATION = 'North East, USA'
       GAME_RULES_URL = 'https://github.com/tobymao/18xx/wiki/1828.Games#rules'
@@ -46,6 +48,20 @@ module Engine
       SELL_BUY_ORDER = :sell_buy_sell
 
       NEXT_SR_PLAYER_ORDER = :first_to_pass
+
+      MARKET_TEXT = Base::MARKET_TEXT.merge(par: 'Yellow Phase Par',
+                                            par_1: 'Green Phase Par',
+                                            par_2: 'Blue Phase Par',
+                                            par_3: 'Brown Phase Par',
+                                            unlimited: 'Corporation shares can be held above 60%, ' \
+                                                       'President may buy two shares at a time')
+
+      STOCKMARKET_COLORS = Base::STOCKMARKET_COLORS.merge(par: :yellow,
+                                                          par_1: :green,
+                                                          par_2: :blue,
+                                                          par_3: :brown,
+                                                          unlimited: :gray,
+                                                          endgame: :red)
 
       EVENTS_TEXT = Base::EVENTS_TEXT.merge(
         'green_par' => ['Green phase pars',
@@ -76,9 +92,10 @@ module Engine
 
       def stock_round
         Round::G1828::Stock.new(self, [
-          Step::DiscardTrain,
-          Step::Exchange,
-          Step::SpecialTrack,
+          Step::G1828::DiscardTrain,
+          Step::G1828::RemoveTokens,
+          Step::G1828::Merger,
+          Step::G1828::Exchange,
           Step::G1828::BuySellParShares,
         ])
       end
@@ -86,17 +103,19 @@ module Engine
       def operating_round(round_num)
         Round::Operating.new(self, [
           Step::Bankrupt,
-          Step::Exchange,
-          Step::DiscardTrain,
+          Step::G1828::Exchange,
+          Step::G1828::DiscardTrain,
+          Step::HomeToken,
           Step::G1828::SpecialTrack,
           Step::G1828::BuyCompany,
           Step::G1828::SpecialToken,
-          Step::G1828::BuySpecial,
+          Step::G1828::SpecialBuy,
           Step::G1828::Track,
           Step::G1828::Token,
           Step::G1828::Route,
           Step::G1828::Dividend,
-          Step::BuyTrain,
+          Step::G1828::SwapTrain,
+          Step::G1828::BuyTrain,
           [Step::BuyCompany, blocks: true],
         ], round_num: round_num)
       end
@@ -136,17 +155,24 @@ module Engine
         tiles
       end
 
-      EXTRA_TILE_LAYS = [{ lay: true, upgrade: true }, { lay: :not_if_upgraded, upgrade: false, cost: 40 }].freeze
       EXTRA_TILE_LAY_CORPS = %w[B&M NYH].freeze
 
       def tile_lays(entity)
-        return self.class::EXTRA_TILE_LAYS if EXTRA_TILE_LAY_CORPS.any?(entity.id)
+        tile_lays = super
+        tile_lays += [{ lay: true, upgrade: :not_if_upgraded }] if entity.system?
+        (entity.system? ? entity.corporations.map(&:name) : [entity.name]).each do |corp_name|
+          tile_lays += [{ lay: :not_if_upgraded, upgrade: false, cost: 40 }] if EXTRA_TILE_LAY_CORPS.include?(corp_name)
+        end
 
-        super
+        tile_lays
       end
 
-      def corporation_opts
-        { can_hold_above_max: true }
+      def can_hold_above_limit?(_entity)
+        true
+      end
+
+      def show_game_cert_limit?
+        false
       end
 
       def init_round_finished
@@ -155,7 +181,7 @@ module Engine
         @companies.each do |company|
           next unless company.owner
 
-          company.abilities(:revenue_change, time: 'auction_end') do |ability|
+          abilities(company, :revenue_change, time: 'auction_end') do |ability|
             company.revenue = ability.revenue
           end
         end
@@ -188,7 +214,7 @@ module Engine
 
       def event_remove_corporations!
         @log << "-- Event: #{EVENTS_TEXT['remove_corporations'][1]}. --"
-        @corporations.reject(&:ipoed).each do |corporation|
+        @corporations.reject(&:ipoed).reject(&:closed?).each do |corporation|
           place_home_blocking_token(corporation)
           place_second_home_blocking_token(corporation) if corporation.name == 'ERIE'
           @log << "Removing #{corporation.name}"
@@ -220,6 +246,62 @@ module Engine
         super
       end
 
+      def merge_candidates(player, corporation)
+        return [] if !player || !corporation
+        return [] if corporation.system?
+
+        @corporations.select do |candidate|
+          next if candidate == corporation ||
+                  candidate.system? ||
+                  !candidate.ipoed ||
+                  (corporation.owner != player && candidate.owner != player) ||
+                  candidate.operated? != corporation.operated? ||
+                  (!candidate.floated? && !corporation.floated?)
+
+          # account for another player having 5+ shares
+          @players.any? do |p|
+            num_shares = p.num_shares_of(candidate) + p.num_shares_of(corporation)
+            num_shares >= 6 ||
+              (num_shares == 5 && !sold_this_round?(p, candidate) && !sold_this_round?(p, corporation))
+          end
+        end
+      end
+
+      def sold_this_round?(entity, corporation)
+        return false unless @round.players_sold
+
+        @round.players_sold[entity][corporation]
+      end
+
+      def create_system(corporations)
+        return nil unless corporations.size == 2
+
+        system_data = CORPORATIONS.find { |c| c[:sym] == corporations.first.id }.dup
+        system_data[:sym] = corporations.map(&:name).join('-')
+        system_data[:tokens] = []
+        system_data[:game] = self
+        system_data[:corporations] = corporations
+        system = init_system(@stock_market, system_data)
+
+        @corporations << system
+        @_corporations[system.id] = system
+        system.shares.each { |share| @_shares[share.id] = share }
+
+        place_system_blocking_tokens(system)
+
+        # Make sure the system will not own two coal markers
+        if coal_markers(system).size > 1
+          remove_coal_marker(system)
+          add_coal_marker_to_va_coalfields
+          @log << "#{system.name} cannot have two coal markers, returning one to Virginia Coalfields"
+        end
+
+        @stock_market.set_par(system, system_market_price(corporations))
+        system.ipoed = true
+
+        system
+      end
+
       def coal_marker_available?
         hex_by_id(VA_COALFIELDS_HEX).tile.icons.any? { |icon| icon.name == COAL_MARKER_ICON }
       end
@@ -227,7 +309,11 @@ module Engine
       def coal_marker?(entity)
         return false unless entity.corporation?
 
-        entity.all_abilities.any? { |ability| ability.description == @coal_marker_ability.description }
+        coal_markers(entity).any?
+      end
+
+      def coal_markers(entity)
+        entity.all_abilities.select { |ability| ability.description == @coal_marker_ability.description }
       end
 
       def connected_to_coalfields?(entity)
@@ -268,6 +354,11 @@ module Engine
         end
       end
 
+      def remove_coal_marker(entity)
+        coal = entity.all_abilities.find { |ability| ability.description == @coal_marker_ability.description }
+        entity.remove_ability(coal)
+      end
+
       def add_coal_marker_to_va_coalfields
         hex_by_id(VA_COALFIELDS_HEX).tile.icons << Engine::Part::Icon.new('1828/coal', 'coal')
       end
@@ -294,14 +385,53 @@ module Engine
         super
       end
 
+      def place_home_token(corporation)
+        if corporation.system? && !corporation.tokens.first&.used
+          corporation.corporations.each do |c|
+            token = Engine::Token.new(c)
+            c.tokens << token
+            place_home_token(c)
+            token.swap!(corporation.tokens.find { |t| t.price.zero? && !t.used }, check_tokenable: false)
+          end
+        else
+          super
+        end
+      end
+
+      def place_blocking_token(hex, city_index: 0)
+        @log << "Placing a blocking token on #{hex.name} (#{hex.location_name})"
+        token = Token.new(@blocking_corporation)
+        hex.tile.cities[city_index].place_token(@blocking_corporation, token, check_tokenable: false)
+      end
+
+      def exchange_for_partial_presidency?
+        true
+      end
+
+      def exchange_partial_percent(share)
+        return nil unless share.president
+
+        100 / share.num_shares
+      end
+
+      def system_by_id(id)
+        corporation_by_id(id)
+      end
+
+      def remove_train(train)
+        super
+
+        train.owner.remove_train(train) if train.owner&.system?
+      end
+
       private
 
       def setup_minors
         @minors.each do |minor|
-          train = @depot.upcoming[0]
+          train = @depot.upcoming[1]
           train.buyable = false
           train.rusts_on = nil
-          minor.buy_train(train, :free)
+          buy_train(minor, train, :free)
           hex = hex_by_id(minor.coordinates)
           hex.tile.cities[0].place_token(minor, minor.next_token, free: true)
         end
@@ -321,15 +451,9 @@ module Engine
       def remove_extra_trains
         return unless @players.size < 5
 
-        to_remove = @depot.trains.reverse.find { |train| train.name == '5' }
+        to_remove = @depot.trains.reverse.find { |train| train.name == '6' }
         @depot.remove_train(to_remove)
         @log << "Removing #{to_remove.name} train"
-      end
-
-      def place_blocking_token(hex, city_index: 0)
-        @log << "Placing a blocking token on #{hex.name} (#{hex.location_name})"
-        token = Token.new(@blocking_corporation)
-        hex.tile.cities[city_index].place_token(@blocking_corporation, token, check_tokenable: false)
       end
 
       def place_home_blocking_token(corporation, city_index: 0)
@@ -340,6 +464,45 @@ module Engine
 
       def place_second_home_blocking_token(corporation)
         place_home_blocking_token(corporation, city_index: 1)
+      end
+
+      def init_system(stock_market, system)
+        Engine::G1828::System.new(
+          min_price: stock_market.par_prices.map(&:price).min,
+          capitalization: self.class::CAPITALIZATION,
+          **system.merge(corporation_opts),
+        )
+      end
+
+      def place_system_blocking_tokens(system)
+        system.tokens.select(&:used).group_by(&:city).each do |city, tokens|
+          next unless tokens.size > 1
+
+          tokens[1].remove!
+          place_blocking_token(city.hex)
+        end
+      end
+
+      def system_market_price(corporations)
+        market = @stock_market.market
+        share_prices = corporations.map(&:share_price)
+        share_values = share_prices.map(&:price).sort
+
+        left_most_col = share_prices.min { |a, b| a.coordinates[1] <=> b.coordinates[1] }.coordinates[1]
+        max_share_value = share_values[1] + (share_values[0] / 2).floor
+
+        new_market_price = nil
+        if market[0][left_most_col].price < max_share_value
+          i = market[0].size - 1
+          i -= 1 while market[0][i].price > max_share_value
+          new_market_price = market[0][i]
+        else
+          i = 0
+          i += 1 while market[i][left_most_col].price > max_share_value
+          new_market_price = market[i][left_most_col]
+        end
+
+        new_market_price
       end
     end
   end

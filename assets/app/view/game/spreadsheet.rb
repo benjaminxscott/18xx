@@ -20,23 +20,42 @@ module View
       def render
         @spreadsheet_sort_by = Lib::Storage['spreadsheet_sort_by']
         @spreadsheet_sort_order = Lib::Storage['spreadsheet_sort_order']
+        @delta_value = Lib::Storage['delta_value']
 
         children = []
-        children << h(Bank, game: @game)
-        children << render_table
 
-        h('div#spreadsheet', { style: {
-          overflow: 'auto',
-        } }, children.compact)
+        top_line_props = {
+          style: {
+            display: 'grid',
+            grid: 'auto / repeat(auto-fill, minmax(20rem, 1fr))',
+            gap: '3rem 1.2rem',
+          },
+        }
+        top_line = h(:div, top_line_props, [
+          h(Bank, game: @game),
+          h(GameInfo, game: @game, layout: 'upcoming_trains'),
+        ].compact)
+
+        children << top_line
+        children << render_table
+        children << render_spreadsheet_controls
+
+        h('div#spreadsheet', {
+            style: {
+              overflow: 'auto',
+            },
+          }, children.compact)
       end
 
       def render_table
-        h(:table, { style: {
-          margin: '1rem 0 1.5rem 0',
-          borderCollapse: 'collapse',
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
-        } }, [
+        h(:table, {
+            style: {
+              margin: '1rem 0 1.5rem 0',
+              borderCollapse: 'collapse',
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            },
+          }, [
           h(:thead, render_title),
           h(:tbody, render_corporations),
           h(:thead, [
@@ -77,11 +96,19 @@ module View
           end
           next if values == last_values
 
+          delta_v = (last_values || Array.new(values.size, 0)).map(&:-@).zip(values).map(&:sum) if @delta_value
           last_values = values
           zebra_row = !zebra_row
+          row_content = values.map.with_index do |v, i|
+            disp_value = @delta_value ? delta_v[i] : v
+            h('td.padded_number',
+              disp_value.negative? ? { style: { color: 'red' } } : {},
+              @game.format_currency(disp_value))
+          end
+
           h(:tr, zebra_props(zebra_row), [
             h('th.left', h.round),
-            *values.map { |v| h('td.padded_number', @game.format_currency(v)) },
+            *row_content,
           ])
         end.compact.reverse
       end
@@ -146,7 +173,12 @@ module View
         }
 
         extra = []
-        extra << h(:th, 'Loans') if @game.total_loans&.nonzero?
+        extra << h(:th, render_sort_link('Loans', :loans)) if @game.total_loans&.nonzero?
+        extra << h(:th, render_sort_link('Shorts', :shorts)) if @game.respond_to?(:available_shorts)
+        if @game.total_loans.positive?
+          extra << h(:th, render_sort_link('Buying Power', :buying_power))
+          extra << h(:th, render_sort_link('Interest Due', :interest))
+        end
         [
           h(:tr, [
             h(:th, ''),
@@ -210,6 +242,15 @@ module View
         update
       end
 
+      def toggle_delta_value
+        Lib::Storage['delta_value'] = !@delta_value
+        update
+      end
+
+      def render_spreadsheet_controls
+        h(:button, { on: { click: -> { toggle_delta_value } } }, "Show #{@delta_value ? 'Total' : 'Delta'} Value")
+      end
+
       def render_corporations
         current_round = @game.turn_round_num
 
@@ -219,10 +260,15 @@ module View
       end
 
       def sorted_corporations
-        floated_corporations = @game.round.entities
+        operating_corporations =
+          if @game.round.operating?
+            @game.round.entities
+          else
+            @game.operating_order
+          end
 
         result = @game.all_corporations.map do |c|
-          operating_order = (floated_corporations.find_index(c) || -1) + 1
+          operating_order = (operating_corporations.find_index(c) || -1) + 1
           [operating_order, c]
         end
 
@@ -238,6 +284,14 @@ module View
             corporation.par_price&.price || 0
           when :share_price
             corporation.share_price&.price || 0
+          when :loans
+            corporation.loans.size
+          when :short
+            @game.available_shorts(corporation)
+          when :buying_power
+            @game.buying_power(corporation, full: true)
+          when :interest
+            @game.interest_owed(corporation)
           else
             @game.player_by_id(@spreadsheet_sort_by)&.num_shares_of(corporation)
           end
@@ -256,7 +310,7 @@ module View
               background: corporation.color,
               color: corporation.text_color,
             },
-        }
+          }
 
         tr_props = zebra_props(index.odd?)
         market_props = { style: { borderRight: border_style } }
@@ -269,15 +323,24 @@ module View
         end
 
         order_props = { style: { paddingLeft: '1.2em' } }
-        operating_order_text = ''
-        if operating_order.positive?
-          corporation.operating_history.each do |history|
-            operating_order_text = "#{operating_order}#{history[0] == current_round ? '*' : ''}"
-          end
-        end
+        operating_order_text = "#{operating_order}#{corporation.operating_history.keys[-1] == current_round ? '*' : ''}"
 
         extra = []
         extra << h(:td, "#{corporation.loans.size}/#{@game.maximum_loans(corporation)}") if @game.total_loans&.nonzero?
+        if @game.respond_to?(:available_shorts)
+          taken, total = @game.available_shorts(corporation)
+          extra << h(:td, "#{taken} / #{total}")
+        end
+        if @game.total_loans.positive?
+          extra << h(:td, @game.format_currency(@game.buying_power(corporation, full: true)))
+          interest_props = { style: {} }
+          unless @game.can_pay_interest?(corporation)
+            color = StockMarket::COLOR_MAP[:yellow]
+            interest_props[:style][:backgroundColor] = color
+            interest_props[:style][:color] = contrast_on(color)
+          end
+          extra << h(:td, interest_props, @game.format_currency(@game.interest_owed(corporation)).to_s)
+        end
 
         h(:tr, tr_props, [
           h(:th, name_props, corporation.name),
@@ -329,7 +392,7 @@ module View
       def render_player_value
         h(:tr, zebra_props(true), [
           h('th.left', 'Value'),
-          *@game.players.map { |p| h('td.padded_number', @game.format_currency(p.value)) },
+          *@game.players.map { |p| h('td.padded_number', @game.format_currency(@game.player_value(p))) },
         ])
       end
 

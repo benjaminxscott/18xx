@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'base'
+require_relative '../assets/app/lib/settings'
 require 'argon2'
 
 class User < Base
@@ -8,14 +9,14 @@ class User < Base
   one_to_many :session
   one_to_many :game_users
 
-  RESET_WINDOW = 60 * 15 # 15 minutes
+  RESET_WINDOW = 60 * 30 # 30 minutes
 
-  SETTINGS = (6.times.flat_map do |index|
+  SETTINGS = (Lib::Settings::ROUTE_COLORS.size.times.flat_map do |index|
     %w[color dash width].map do |prop|
       "r#{index}_#{prop}"
     end
   end + %w[
-    consent notifications red_logo bg font bg2 font2 your_turn white yellow green
+    consent notifications red_logo bg font bg2 font2 your_turn hotseat_game white yellow green
     brown gray red blue
   ]).freeze
 
@@ -58,7 +59,7 @@ class User < Base
 
     if for_user
       h[:email] = email
-      h[:settings] = settings
+      h[:settings] = settings.to_h
     end
 
     h
