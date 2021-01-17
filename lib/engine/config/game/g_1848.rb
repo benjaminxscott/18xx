@@ -239,6 +239,7 @@ module Engine
         {
           "type":"tile_lay",
           "free": true,
+          "on_phase": 3,
           "count": 1,
           "when": "track",
           "owner_type": "corporation",
@@ -259,6 +260,7 @@ module Engine
         {
           "type":"tile_lay",
           "free": true,
+          "on_phase": 3,
           "count": 1,
           "when": "track",
           "owner_type": "player",
