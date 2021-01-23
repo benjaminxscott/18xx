@@ -355,6 +355,7 @@ module Engine
       "sym": "AR",
       "name": "Awa Railroad",
       "logo": "1889/AR",
+      "simple_logo": "1889/AR.alt",
       "tokens": [
         0,
         40
@@ -367,6 +368,7 @@ module Engine
       "sym": "IR",
       "name": "Iyo Railway",
       "logo": "1889/IR",
+      "simple_logo": "1889/IR.alt",
       "tokens": [
         0,
         40
@@ -379,6 +381,7 @@ module Engine
       "sym": "SR",
       "name": "Sanuki Railway",
       "logo": "1889/SR",
+      "simple_logo": "1889/SR.alt",
       "tokens": [
         0,
         40
@@ -391,6 +394,7 @@ module Engine
       "sym": "KO",
       "name": "Takamatsu & Kotohira Electric Railway",
       "logo": "1889/KO",
+      "simple_logo": "1889/KO.alt",
       "tokens": [
         0,
         40
@@ -403,6 +407,7 @@ module Engine
       "sym": "TR",
       "name": "Tosa Electric Railway",
       "logo": "1889/TR",
+      "simple_logo": "1889/TR.alt",
       "tokens": [
         0,
         40,
@@ -416,6 +421,7 @@ module Engine
       "sym": "KU",
       "name": "Tosa Kuroshio Railway",
       "logo": "1889/KU",
+      "simple_logo": "1889/KU.alt",
       "tokens": [
         0
       ],
@@ -427,6 +433,7 @@ module Engine
       "sym": "UR",
       "name": "Uwajima Railway",
       "logo": "1889/UR",
+      "simple_logo": "1889/UR.alt",
       "tokens": [
         0,
         40,
