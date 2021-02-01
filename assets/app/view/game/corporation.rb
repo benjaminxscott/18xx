@@ -152,7 +152,7 @@ module View
         }
         name_props[:style][:justifySelf] = 'start' unless @corporation.system?
         children = [h(:img, logo_props),
-                    h('div.title', name_props, @corporation.full_name)]
+                    h('div.title', name_props, @corporation.name)]
 
         if @corporation.system?
           logo_props[:attrs][:src] = logo_for_user(@corporation.corporations.last)
@@ -166,7 +166,7 @@ module View
       def render_holdings
         holdings_row_props = {
           style: {
-            grid: '1fr / max-content auto minmax(4rem, max-content)',
+            grid: '1fr / max-content auto minmax(1rem, max-content)',
             gap: '0 0.3rem',
             padding: '0.2rem 0.2rem 0.2rem 0.4rem',
             backgroundColor: color_for(:bg2),
@@ -198,7 +198,6 @@ module View
           end
 
         h('div.corp__holdings', holdings_row_props, [
-          h(:div, sym_props, @corporation.name),
           holdings,
           render_tokens,
         ])
