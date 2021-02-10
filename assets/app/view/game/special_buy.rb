@@ -29,7 +29,7 @@ module View
         text = if @step.respond_to?(:item_str)
                  @step.item_str(item)
                else
-                 "Buy #{item.description} (#{@game.format_currency(item.cost)})"
+                 "Buy #{item.description} (#{@game.format_currency(item.cost, @user&.dig(:settings, :show_currency))})"
                end
         h(:button, { on: { click: block } }, text)
       end

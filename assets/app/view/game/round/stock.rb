@@ -52,7 +52,8 @@ module View
             num_presentation = @game.share_pool.num_presentation(@price_protection)
             children << h('div.margined',
                           "You can price protect #{num_presentation} of #{@price_protection.corporation.name} "\
-                          "for #{@game.format_currency(@price_protection.price)}")
+                          "for #{@game.format_currency(@price_protection.price,
+                                                       @user&.dig(:settings, :show_currency))}")
           end
 
           children.concat(render_buttons)
@@ -284,7 +285,8 @@ module View
 
           [h(:button,
              { on: { click: buy } },
-             "Sell #{@selected_company.sym} to Bank for #{@game.format_currency(price)}")]
+             "Sell #{@selected_company.sym} to Bank for #{@game.format_currency(price,
+                                                                                @user&.dig(:settings, :show_currency))}")]
         end
 
         def render_bank_companies
@@ -323,7 +325,8 @@ module View
           end
           [h(:button,
              { on: { click: buy } },
-             "Buy #{@selected_company.sym} from Bank for #{@game.format_currency(company.value)}")]
+             "Buy #{@selected_company.sym} from Bank for #{@game.format_currency(company.value,
+                                                                                 @user&.dig(:settings, :show_currency))}")]
         end
 
         def render_buy_input_interval(company)
@@ -346,7 +349,8 @@ module View
               on: { click: buy },
             }
 
-            h('button.small.buy_company', props, @game.format_currency(price).to_s)
+            h('button.small.buy_company', props,
+              @game.format_currency(price, @user&.dig(:settings, :show_currency)).to_s)
           end
 
           div_class = buy_buttons.size < 5 ? '.inline' : ''

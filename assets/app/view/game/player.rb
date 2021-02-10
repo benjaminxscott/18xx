@@ -85,7 +85,7 @@ module View
         trs = [
           h(:tr, [
             h(:td, 'Cash'),
-            h('td.right', @game.format_currency(@player.cash)),
+            h('td.right', @game.format_currency(@player.cash, @user&.dig(:settings, :show_currency))),
           ]),
         ]
 
@@ -94,11 +94,11 @@ module View
           trs.concat([
             h(:tr, [
               h(:td, 'Committed'),
-              h('td.right', @game.format_currency(committed)),
+              h('td.right', @game.format_currency(committed, @user&.dig(:settings, :show_currency))),
             ]),
             h(:tr, [
               h(:td, 'Available'),
-              h('td.right', @game.format_currency(@player.cash - committed)),
+              h('td.right', @game.format_currency(@player.cash - committed, @user&.dig(:settings, :show_currency))),
             ]),
           ]) if committed.positive?
 
@@ -113,18 +113,18 @@ module View
         trs.concat([
           h(:tr, [
             h(:td, 'Value'),
-            h('td.right', @game.format_currency(@game.player_value(@player))),
+            h('td.right', @game.format_currency(@game.player_value(@player, @user&.dig(:settings, :show_currency)))),
           ]),
           h(:tr, [
             h(:td, 'Liquidity'),
-            h('td.right', @game.format_currency(@game.liquidity(@player))),
+            h('td.right', @game.format_currency(@game.liquidity(@player, @user&.dig(:settings, :show_currency)))),
           ]),
         ])
 
         if @game.respond_to?(:bidding_power)
           trs << h(:tr, [
             h(:td, 'Bid Power'),
-            h('td.right', @game.format_currency(@game.bidding_power(@player))),
+            h('td.right', @game.format_currency(@game.bidding_power(@player, @user&.dig(:settings, :show_currency)))),
           ])
         end
         trs << h(:tr, [

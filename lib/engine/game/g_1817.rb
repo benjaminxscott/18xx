@@ -180,12 +180,13 @@ module Engine
         summary
       end
 
-      def format_currency(val)
+      def format_currency(val, show_currency: false)
         # On dividends per share can be a float
         # But don't show decimal points on all
         return super if (val % 1).zero?
 
-        format('$%.1<val>f', val: val)
+        currency = '$' if show_currency
+        format("#{currency}%.1<val>f", val: val)
       end
 
       def maximum_loans(entity)

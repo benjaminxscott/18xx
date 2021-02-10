@@ -31,18 +31,18 @@ module View
         if @game.game_end_check_values.include?(:bank)
           trs << h(:tr, [
             h(:td, 'Cash'),
-            h('td.right', @game.format_currency(@game.bank_cash)),
+            h('td.right', @game.format_currency(@game.bank_cash, @user&.dig(:settings, :show_currency))),
           ])
         end
         if (rate = @game.interest_rate)
           trs << h(:tr, [
             h(:td, 'Interest per Loan'),
-            h('td.right', @game.format_currency(rate)),
+            h('td.right', @game.format_currency(@game.bank_cash, @user&.dig(:settings, :show_currency))),
           ])
           if @game.respond_to?(:future_interest_rate)
             trs << h(:tr, [
               h(:td, 'Future Interest per Loan'),
-              h('td.right', @game.format_currency(@game.future_interest_rate)),
+              h('td.right', @game.format_currency(@game.bank_cash, @user&.dig(:settings, :show_currency))),
             ])
           end
           trs << h(:tr, [
@@ -50,22 +50,22 @@ module View
             h('td.right', "#{@game.loans_taken}/#{@game.total_loans}"),
           ])
           if @game.respond_to?(:interest_change)
-            @game.interest_change.each do |text, price_change|
+            @game.interest_change.each do |text, _price_change|
               trs << h(:tr, [
                 h(:td, text),
-                h('td.right', @game.format_currency(price_change)),
+                h('td.right', @game.format_currency(@game.bank_cash, @user&.dig(:settings, :show_currency))),
               ])
             end
           end
           trs << h(:tr, [
             h(:td, 'Loan Value'),
-            h('td.right', @game.format_currency(@game.loan_value)),
+            h('td.right', @game.format_currency(@game.bank_cash, @user&.dig(:settings, :show_currency))),
           ])
         end
         if @game.round.active_step.respond_to?(:seed_money)
           trs << h(:tr, [
             h(:td, 'Seed Money'),
-            h('td.right', @game.format_currency(@game.round.active_step.seed_money)),
+            h('td.right', @game.format_currency(@game.bank_cash, @user&.dig(:settings, :show_currency))),
           ])
         end
         if @game.respond_to?(:unstarted_corporation_summary)

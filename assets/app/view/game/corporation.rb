@@ -197,7 +197,7 @@ module View
       end
 
       def render_cash
-        render_header_segment(@game.format_currency(@corporation.cash), 'Cash')
+        render_header_segment(@game.format_currency(@corporation.cash, @user&.dig(:settings, :show_currency)), 'Cash')
       end
 
       def render_to_float
@@ -284,7 +284,7 @@ module View
       end
 
       def share_price_str(share_price)
-        share_price ? @game.format_currency(share_price.price) : ''
+        share_price ? @game.format_currency(share_price.price, @user&.dig(:settings, :show_currency)) : ''
       end
 
       def share_number_str(number)
@@ -479,7 +479,7 @@ module View
         last_run = @corporation.operating_history[@corporation.operating_history.keys.max].revenue
         h(:div, { style: { display: 'inline', marginLeft: '2rem' } }, [
           'Last Run: ',
-          h('span.bold', @game.format_currency(last_run)),
+          h('span.bold', @game.format_currency(last_run, @user&.dig(:settings, :show_currency))),
         ])
       end
 
@@ -520,7 +520,8 @@ module View
           ]),
           h('tr.ipo', interest_props, [
             h('td.right', 'Interest Due'),
-            h('td.padded_number', @game.format_currency(@game.interest_owed(@corporation)).to_s),
+            h('td.padded_number',
+              @game.format_currency(@game.interest_owed(@corporation, @user&.dig(:settings, :show_currency))).to_s),
           ]),
         ]
       end
@@ -535,14 +536,16 @@ module View
       def render_escrow_account
         h('tr.ipo', [
           h('td.right', 'Escrow'),
-          h('td.padded_number', @game.format_currency(@corporation.escrow)),
+          h('td.padded_number', @game.format_currency(@corporation.escrow, @user&.dig(:settings, :show_currency))),
         ])
       end
 
       def render_buying_power
         h('tr.ipo', [
           h('td.right', 'Buying Power'),
-          h('td.padded_number', @game.format_currency(@game.buying_power(@corporation, full: true)).to_s),
+          h('td.padded_number',
+            @game.format_currency(@game.buying_power(@corporation, full: true),
+                                  @user&.dig(:settings, :show_currency)).to_s),
         ])
       end
 

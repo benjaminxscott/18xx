@@ -69,8 +69,8 @@ module View
           props = { style: { paddingRight: '1rem' } }
           h(:tr, [
             button,
-            h('td.right', props, [@game.format_currency(corp_income)]),
-            h('td.right', props, [@game.format_currency(option[:per_share])]),
+            h('td.right', props, [@game.format_currency(corp_income, @user&.dig(:settings, :show_currency))]),
+            h('td.right', props, [@game.format_currency(option[:per_share], @user&.dig(:settings, :show_currency))]),
             h(:td, [direction]),
           ])
         end
@@ -92,13 +92,14 @@ module View
 
         if corporation_interest_penalty?(entity)
           corporation_penalty = "#{entity.name} has " +
-            @game.format_currency(@game.round.interest_penalty[entity]).to_s +
+            @game.format_currency(@game.round.interest_penalty[entity], @user&.dig(:settings, :show_currency)).to_s +
             ' deducted from its run for interest payments'
         end
 
         if player_interest_penalty?(entity)
           player_penalty = "#{entity.owner.name} paid " +
-            @game.format_currency(@game.round.player_interest_penalty[entity]).to_s +
+            @game.format_currency(@game.round.player_interest_penalty[entity],
+                                  @user&.dig(:settings, :show_currency)).to_s +
             ' to cover the remaining unpaid interest'
         end
         penalties = h(:span)

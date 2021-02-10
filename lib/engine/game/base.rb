@@ -775,8 +775,10 @@ module Engine
           end
       end
 
-      def format_currency(val)
-        self.class::CURRENCY_FORMAT_STR % val
+      def format_currency(val, show_currency: false)
+        currency = '%d'
+        currency = self.class::CURRENCY_FORMAT_STR if show_currency
+        currency % val
       end
 
       def purchasable_companies(entity = nil)

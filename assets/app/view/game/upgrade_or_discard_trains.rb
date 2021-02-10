@@ -36,7 +36,7 @@ module View
                                },
                              },
                              "Upgrade to #{train_name}
-                             (#{@game.format_currency(upgrade_price)})") unless train_name.nil?
+                             (#{@game.format_currency(upgrade_price, @user&.dig(:settings, :show_currency))})") unless train_name.nil?
 
           train_options << h(:button, {
                                on: {

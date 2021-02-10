@@ -104,7 +104,8 @@ module View
         operators = all_operators.map do |operator|
           revenue = operator.operating_history[operator.operating_history.keys.max].revenue
           attrs = { value: operator.name }
-          h(:option, { attrs: attrs }, "#{operator.name} #{@game.format_currency(revenue)}")
+          h(:option, { attrs: attrs },
+            "#{operator.name} #{@game.format_currency(revenue, @user&.dig(:settings, :show_currency))}")
         end
 
         attrs = {}

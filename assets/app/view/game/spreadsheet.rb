@@ -104,7 +104,7 @@ module View
             disp_value = @delta_value ? delta_v[i] : v
             h('td.padded_number',
               disp_value.negative? ? { style: { color: 'red' } } : {},
-              @game.format_currency(disp_value))
+              @game.format_currency(disp_value, @user&.dig(:settings, :show_currency)))
           end
 
           h(:tr, zebra_props(zebra_row), [
@@ -339,14 +339,17 @@ module View
           extra << h(:td, "#{taken} / #{total}")
         end
         if @game.total_loans.positive?
-          extra << h(:td, @game.format_currency(@game.buying_power(corporation, full: true)))
+          extra << h(:td,
+                     @game.format_currency(@game.buying_power(corporation, full: true),
+                                           @user&.dig(:settings, :show_currency)))
           interest_props = { style: {} }
           unless @game.can_pay_interest?(corporation)
             color = StockMarket::COLOR_MAP[:yellow]
             interest_props[:style][:backgroundColor] = color
             interest_props[:style][:color] = contrast_on(color)
           end
-          extra << h(:td, interest_props, @game.format_currency(@game.interest_owed(corporation)).to_s)
+          extra << h(:td, interest_props,
+                     @game.format_currency(@game.interest_owed(corporation, @user&.dig(:settings, :show_currency))).to_s)
         end
 
         h(:tr, tr_props, [
@@ -364,10 +367,16 @@ module View
           h('td.padded_number', { style: { borderLeft: border_style } }, num_shares_of(corporation, corporation).to_s),
           h('td.padded_number', { style: { borderRight: border_style } },
             "#{corporation.receivership? ? '*' : ''}#{num_shares_of(@game.share_pool, corporation)}"),
-          h('td.padded_number', corporation.par_price ? @game.format_currency(corporation.par_price.price) : ''),
+          h('td.padded_number',
+            if corporation.par_price
+              @game.format_currency(corporation.par_price.price,
+                                    @user&.dig(:settings, :show_currency))
+            else
+              ''
+            end),
           h('td.padded_number', market_props,
-            corporation.share_price ? @game.format_currency(corporation.share_price.price) : ''),
-          h('td.padded_number', @game.format_currency(corporation.cash)),
+            corporation.share_price ? @game.format_currency(corporation.share_price.price, @user&.dig(:settings, :show_currency)) : ''),
+          h('td.padded_number', @game.format_currency(corporation.cash, @user&.dig(:settings, :show_currency))),
           h('td.left', order_props, operating_order_text),
           h(:td, corporation.trains.map(&:name).join(', ')),
           h(:td, @game.token_string(corporation)),
@@ -392,21 +401,27 @@ module View
       def render_player_cash
         h(:tr, zebra_props, [
           h('th.left', 'Cash'),
-          *@game.players.map { |p| h('td.padded_number', @game.format_currency(p.cash)) },
+          *@game.players.map do |p|
+            h('td.padded_number', @game.format_currency(p.cash, @user&.dig(:settings, :show_currency)))
+          end,
         ])
       end
 
       def render_player_value
         h(:tr, zebra_props(true), [
           h('th.left', 'Value'),
-          *@game.players.map { |p| h('td.padded_number', @game.format_currency(@game.player_value(p))) },
+          *@game.players.map do |p|
+            h('td.padded_number', @game.format_currency(@game.player_value(p, @user&.dig(:settings, :show_currency))))
+          end,
         ])
       end
 
       def render_player_liquidity
         h(:tr, zebra_props, [
           h('th.left', 'Liquidity'),
-          *@game.players.map { |p| h('td.padded_number', @game.format_currency(@game.liquidity(p))) },
+          *@game.players.map do |p|
+            h('td.padded_number', @game.format_currency(@game.liquidity(p, @user&.dig(:settings, :show_currency))))
+          end,
         ])
       end
 

@@ -56,7 +56,7 @@ module View
       end
 
       def render_button(bundle, &block)
-        str = "#{bundle.num_shares} (#{@game.format_currency(bundle.price)})"
+        str = "#{bundle.num_shares} (#{@game.format_currency(bundle.price, @user&.dig(:settings, :show_currency))})"
         str += " from #{bundle.owner.name}" if bundle.owner.player?
         h('button.small', { on: { click: block } }, str)
       end

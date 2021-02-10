@@ -39,7 +39,10 @@ module View
         }
         names = @bids
           .sort_by(&:price)
-          .reverse.map { |bid| "#{bid.entity.name} (#{@game.format_currency(bid.price)})" }
+          .reverse.map do |bid|
+          "#{bid.entity.name} (#{@game.format_currency(bid.price,
+                                                       @user&.dig(:settings, :show_currency))})"
+        end
           .join(', ')
         h(:div, { style: bidders_style }, names)
       end
@@ -101,8 +104,10 @@ module View
             h(:div, { style: header_style }, 'PRIVATE COMPANY'),
             h(:div, @company.name),
             h(:div, { style: description_style }, @company.desc),
-            h(:div, { style: value_style }, "Value: #{@game.format_currency(@company.value)}"),
-            h(:div, { style: revenue_style }, "Revenue: #{@game.format_currency(@company.revenue)}"),
+            h(:div, { style: value_style },
+              "Value: #{@game.format_currency(@company.value, @user&.dig(:settings, :show_currency))}"),
+            h(:div, { style: revenue_style },
+              "Revenue: #{@game.format_currency(@company.revenue, @user&.dig(:settings, :show_currency))}"),
           ]
 
           if @bids&.any?
@@ -114,7 +119,7 @@ module View
             children << h(
             :div,
             { style: { float: 'center' } },
-            "Price: #{@game.format_currency(@company.value - @company.discount)}"
+            "Price: #{@game.format_currency(@company.value - @company.discount, @user&.dig(:settings, :show_currency))}"
           )
           end
 
@@ -156,8 +161,13 @@ module View
           extra << " (#{uses[0]}/#{uses[1]})"
         end
         [h('div.nowrap', name_props, company.name + extra.join(',')),
-         @company.owner&.player? ? h('div.right', @game.format_currency(company.value)) : '',
-         h('div.padded_number', @game.format_currency(company.revenue)),
+         if @company.owner&.player?
+           h('div.right',
+             @game.format_currency(company.value, @user&.dig(:settings, :show_currency)))
+         else
+           ''
+         end,
+         h('div.padded_number', @game.format_currency(company.revenue, @user&.dig(:settings, :show_currency))),
          @hidden_divs[company.sym]]
       end
     end

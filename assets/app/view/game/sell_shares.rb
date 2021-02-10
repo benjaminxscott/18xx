@@ -34,7 +34,8 @@ module View
           h(
             'button.sell_share',
             props,
-            "Sell #{share_presentation(bundle)}#{double_cert} (#{@game.format_currency(bundle.price)})"
+            "Sell #{share_presentation(bundle)}#{double_cert} (#{@game.format_currency(bundle.price,
+                                                                                       @user&.dig(:settings, :show_currency))})"
           )
         end
 
@@ -62,7 +63,7 @@ module View
       end
 
       def sell_with_swap(player, bundle, swap_sell)
-        reduced_price = @game.format_currency(bundle.price - swap_sell.price)
+        reduced_price = @game.format_currency(bundle.price - swap_sell.price, @user&.dig(:settings, :show_currency))
         swap = lambda do
           process_action(@action.new(
             player,

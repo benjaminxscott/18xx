@@ -174,7 +174,7 @@ module View
               next if bid_max < bid_min
 
               h(:button, { on: { click: -> { move_bid(company, input, from_company, from_bid.price) } } },
-                "Move #{from_company.sym} #{@game.format_currency(from_bid.price)} Bid")
+                "Move #{from_company.sym} #{@game.format_currency(from_bid.price, @user&.dig(:settings, :show_currency))} Bid")
             end
           end.compact
         end

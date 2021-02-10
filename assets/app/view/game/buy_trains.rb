@@ -30,27 +30,29 @@ module View
 
         if @depot.min_depot_price > @corporation.cash
           children << h(:div, "#{player.name} #{verb} contribute "\
-                              "#{@game.format_currency(@depot.min_depot_price - @corporation.cash)} "\
+                              "#{@game.format_currency(@depot.min_depot_price - @corporation.cash, @user&.dig(:settings, :show_currency))} "\
                               "for #{@corporation.name} to afford a train from the Depot.")
         end
 
-        children << h(:div, "#{player.name} has #{@game.format_currency(player.cash)} in cash.")
+        children << h(:div,
+                      "#{player.name} has #{@game.format_currency(player.cash,
+                                                                  @user&.dig(:settings, :show_currency))} in cash.")
 
         if share_funds_allowed.positive?
-          children << h(:div, "#{player.name} has #{@game.format_currency(share_funds_possible)} "\
+          children << h(:div, "#{player.name} has #{@game.format_currency(share_funds_possible, @user&.dig(:settings, :show_currency))} "\
                               'in sellable shares.')
         end
 
         if share_funds_required.positive?
           children << h(:div, "#{player.name} #{verb} sell shares to raise at least "\
-                              "#{@game.format_currency(share_funds_required)}.")
+                              "#{@game.format_currency(share_funds_required, @user&.dig(:settings, :show_currency))}.")
         end
 
         if share_funds_allowed.positive? &&
            (share_funds_allowed != share_funds_required) &&
            (share_funds_possible >= share_funds_allowed)
           children << h(:div, "#{player.name} may continue to sell shares until raising up to "\
-                              "#{@game.format_currency(share_funds_allowed)}.")
+                              "#{@game.format_currency(share_funds_allowed, @user&.dig(:settings, :show_currency))}.")
         end
 
         if @must_buy_train && share_funds_possible < share_funds_required
@@ -137,7 +139,7 @@ module View
             end
 
             children << h(:div, [
-              "#{train.name} -> #{variant} #{@game.format_currency(price)} ",
+              "#{train.name} -> #{variant} #{@game.format_currency(price, @user&.dig(:settings, :show_currency))} ",
               h('button.no_margin', { on: { click: exchange_train } }, 'Exchange'),
             ])
           end
@@ -146,11 +148,13 @@ module View
         children << h(:h3, h3_props, 'Remaining Trains')
         children << remaining_trains
 
-        children << h(:div, "#{@corporation.name} has #{@game.format_currency(@corporation.cash)}.")
+        children << h(:div,
+                      "#{@corporation.name} has #{@game.format_currency(@corporation.cash,
+                                                                        @user&.dig(:settings, :show_currency))}.")
         if step.issuable_shares(@corporation).any? &&
            (issuable_cash = @game.emergency_issuable_cash(@corporation)).positive?
           children << h(:div, "#{@corporation.name} can issue shares to raise up to "\
-                              "#{@game.format_currency(issuable_cash)} (the corporation "\
+                              "#{@game.format_currency(issuable_cash, @user&.dig(:settings, :show_currency))} (the corporation "\
                               'must issue shares before the president may contribute).')
         end
 
@@ -195,7 +199,7 @@ module View
 
             [h(:div, name),
              h('div.nowrap', source),
-             h('div.right', @game.format_currency(price)),
+             h('div.right', @game.format_currency(price, @user&.dig(:settings, :show_currency))),
              h('button.no_margin', { on: { click: buy_train } }, president_assist.positive? ? 'Assisted buy' : 'Buy')]
           end
         end
@@ -302,7 +306,9 @@ module View
         rows = @depot.upcoming.group_by(&:name).flat_map do |_, trains|
           names_to_prices = trains.first.names_to_prices
           [h(:div, names_to_prices.keys.join(', ')),
-           h(:div, names_to_prices.values.map { |p| @game.format_currency(p) }.join(', ')),
+           h(:div, names_to_prices.values.map do |p|
+                     @game.format_currency(p, @user&.dig(:settings, :show_currency))
+                   end.join(', ')),
            h(:div, trains.size)]
         end
 

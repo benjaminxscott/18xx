@@ -168,7 +168,9 @@ module View
           train = trains.first
           names_to_prices = train.names_to_prices
           summary = [h(:div,
-                       "#{trains.size} at " + names_to_prices.values.map { |p| @game.format_currency(p) }.join(', '))]
+                       "#{trains.size} at " + names_to_prices.values.map do |p|
+                                                @game.format_currency(p, @user&.dig(:settings, :show_currency))
+                                              end.join(', '))]
           summary << h(:div, ' rusts ' + rust_schedule[name].join(',')) if rust_schedule[name]
           summary << h(:div, ' obsoletes ' + obsolete_schedule[name].join(',')) if obsolete_schedule[name]
 
@@ -199,7 +201,8 @@ module View
         rows = @depot.upcoming.group_by(&:name).map do |name, trains|
           train = trains.first
           discounts = train.discount&.group_by { |_k, v| v }&.map do |price, price_discounts|
-            price_discounts.map(&:first).join(', ') + ' → ' + @game.format_currency(price)
+            price_discounts.map(&:first).join(', ') + ' → ' + @game.format_currency(price,
+                                                                                    @user&.dig(:settings, :show_currency))
           end
           names_to_prices = train.names_to_prices
 
@@ -223,7 +226,9 @@ module View
 
           upcoming_train_content = [
             h(:td, names_to_prices.keys.join(', ')),
-            h('td.right', names_to_prices.values.map { |p| @game.format_currency(p) }.join(', ')),
+            h('td.right', names_to_prices.values.map do |p|
+                            @game.format_currency(p, @user&.dig(:settings, :show_currency))
+                          end.join(', ')),
             h(:td, trains.size),
           ]
           upcoming_train_content << h(:td, obsolete_schedule[name]&.join(', ') || 'None') if show_obsolete_schedule
@@ -287,7 +292,7 @@ module View
         rows = @depot.discarded.map do |train|
           h(:tr, [
             h(:td, train.name),
-            h(:td, @game.format_currency(train.price)),
+            h(:td, @game.format_currency(train.price, @user&.dig(:settings, :show_currency))),
           ])
         end
 

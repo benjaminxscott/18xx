@@ -17,7 +17,8 @@ module View
 
         funds_required = @game.round.active_step.needed_cash(player)
         children << h('div',
-                      "Player owes the bank #{@game.format_currency(funds_required)} and must sell shares if possible.")
+                      "Player owes the bank #{@game.format_currency(funds_required,
+                                                                    @user&.dig(:settings, :show_currency))} and must sell shares if possible.")
 
         children.concat(render_emergency_money_raising(player))
 

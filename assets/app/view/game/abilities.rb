@@ -96,7 +96,8 @@ module View
           ))
         end
 
-        h(:button, { on: { click: sell } }, "Sell company (#{@game.format_currency(@selected_company.value)})")
+        h(:button, { on: { click: sell } },
+          "Sell company (#{@game.format_currency(@selected_company.value, @user&.dig(:settings, :show_currency))})")
       end
     end
   end

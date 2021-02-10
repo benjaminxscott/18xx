@@ -20,7 +20,8 @@ module View
         def render
           show_percentage = @percentages_available > 1 ||
                             @share.percent != @share.corporation.share_percent && !@share.president
-          reduced_price = @game.format_currency(@share.price - @swap_share.price) if @swap_share
+          reduced_price = @game.format_currency(@share.price - @swap_share.price,
+                                                @user&.dig(:settings, :show_currency)) if @swap_share
 
           text = @prefix.to_s
           text += " #{@partial_percent}% of" if @partial_percent

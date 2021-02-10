@@ -128,10 +128,11 @@ module Engine
         entity.player? && entity == company.owner
       end
 
-      def format_currency(val)
+      def format_currency(val, show_currency: false)
         return super if (val % 1).zero?
 
-        format('£%.1<val>f', val: val)
+        currency = '£' if show_currency
+        format("#{currency}%.1<val>f", val: val)
       end
 
       def tile_lays(entity)

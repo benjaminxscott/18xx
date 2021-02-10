@@ -125,7 +125,7 @@ module View
           children = []
           if route
             revenue, invalid = begin
-              [@game.format_currency(route.revenue), nil]
+              [@game.format_currency(route.revenue, @user&.dig(:settings, :show_currency)), nil]
             rescue Engine::GameError => e
               ['N/A', e.to_s]
             end
@@ -140,7 +140,7 @@ module View
             if route.halts
               render_halts = true
               children << h('td.right', td_props, halt_actions(route, revenue,
-                                                               @game.format_currency(route.subsidy)))
+                                                               @game.format_currency(route.subsidy, @user&.dig(:settings, :show_currency))))
             else
               children << h('td.right', td_props, revenue)
             end
@@ -255,13 +255,18 @@ module View
         }
 
         revenue = begin
-          @game.format_currency(@game.routes_revenue(active_routes))
+          @game.format_currency(@game.routes_revenue(active_routes, @user&.dig(:settings, :show_currency)))
         rescue Engine::GameError
           '(Invalid Route)'
         end
 
         render_halts ||= @game.respond_to?(:routes_subsidy) && @game.routes_subsidy(active_routes).positive?
-        subsidy = render_halts ? " + #{@game.format_currency(@game.routes_subsidy(active_routes))} (subsidy)" : ''
+        subsidy = if render_halts
+                    " + #{@game.format_currency(@game.routes_subsidy(active_routes,
+                                                                     @user&.dig(:settings, :show_currency)))} (subsidy)"
+                  else
+                    ''
+                  end
         h(:div, { style: { overflow: 'auto', marginBottom: '1rem' } }, [
           h(:div, [
             h('button.small', { on: { click: clear } }, 'Clear Train'),
