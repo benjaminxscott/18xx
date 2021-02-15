@@ -31,7 +31,6 @@ module Engine
       HOME_TOKEN_TIMING = :float
       SELL_AFTER = :any_time
       SELL_BUY_ORDER = :sell_buy
-      MUST_SELL_IN_BLOCKS = true
       MARKET_SHARE_LIMIT = 100
       TRAIN_PRICE_MIN = 10
       TRAIN_PRICE_MULTIPLE = 10
@@ -520,24 +519,25 @@ module Engine
         @nationalized_corps << corp
       end
 
-      def status_str(corp)
+      def status_array(corp)
         layer_str = "Layer #{corp_layer(corp)}"
         layer_str += ' (N/A)' unless can_ipo?(corp)
 
         prices = par_prices(corp).map(&:price).sort
         par_str = if !corp.ipoed && bankrupt?(corp)
-                    " | Par #{prices[0]}-#{prices[-1]}"
+                    "Par #{prices[0]}-#{prices[-1]}"
                   elsif !corp.ipoed
-                    " | Par #{prices.join(', ')}"
-                  else
-                    ''
+                    "Par #{prices.join(', ')}"
                   end
 
-        status = ' | Inslvt' if insolvent?(corp)
-        status = status ? status + ',Rcv' : ' | Rcv' if corp.receivership?
-        status = status ? status + ',Bkrpt' : ' | Bkrpt' if bankrupt?(corp)
-        status = status ? status + ',Nat' : ' | Nat' if nationalized?(corp)
-        layer_str + par_str + (status || '')
+        status = [[layer_str]]
+        status << [par_str] if par_str
+        status << %w[Insolvent bold] if insolvent?(corp)
+        status << %w[Receivership bold] if corp.receivership?
+        status << %w[Bankrupt bold] if bankrupt?(corp)
+        status << %w[Nationalized bold] if nationalized?(corp)
+
+        status
       end
 
       def corp_hi_par(corp)
