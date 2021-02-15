@@ -10,13 +10,13 @@ module View
       needs :show_hidden, default: false
 
       def render
-        owned_companies = @owner.companies
+        owned_companies = @owner.companies.sort_by(&:revenue)
 
         if @show_hidden
           round = @game.round
           current_entity = round.current_entity
           step = round.active_step
-          owned_companies = step.choices[current_entity]
+          owned_companies = step.choices[current_entity].sort_by(&:revenue)
         end
 
         companies = owned_companies.flat_map do |c|
