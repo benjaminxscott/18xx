@@ -757,6 +757,7 @@ module Engine
 
         def setup
           @turn = setup_turn
+          # TODO: - hash to map company name to icon, instead of having constants
 
           # When creating a game the game will not have enough to start
           return unless @players.size.between?(*Engine.player_range(self.class))
@@ -771,6 +772,16 @@ module Engine
             @round.active_step.companies.delete(company)
           end
           remove_from_group!(self.class::BLUE_GROUP, @companies) do |company|
+            if company == steamboat
+              self.class::STEAMBOAT_HEXES.each do |hex|
+                hex_by_id(hex).tile.icons.reject! { |icon| %w[port].include?(icon.name) }
+              end
+            end
+            if company == meat_packing
+              self.class::MEAT_HEXES.each do |hex|
+                hex_by_id(hex).tile.icons.reject! { |icon| %w[meat].include?(icon.name) }
+              end
+            end
             company.close!
             @round.active_step.companies.delete(company)
           end
