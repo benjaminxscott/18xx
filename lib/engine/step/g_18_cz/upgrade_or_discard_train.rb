@@ -45,7 +45,7 @@ module Engine
         end
 
         def description
-          "Upgrade or scrap bought trains #{buying_entity.name}"
+          'Upgrade or Scrap trains'
         end
 
         def process_discard_train(action)
@@ -62,10 +62,10 @@ module Engine
           entity = action.entity
 
           old_train_name = train.name
+
+          raise GameError, "Train #{train.name} cannot be upgraded" unless train.upgradeable?
+
           variant_name, price = upgrade_infos(train, entity)
-
-          raise GameError, "Train #{train.name} cannot be upgraded" if variant_name.nil?
-
           entity.spend(price, @game.bank) if price.positive?
           train.variant = variant_name
 
@@ -81,11 +81,17 @@ module Engine
           @round.bought_trains.shift
         end
 
-        def upgrade_infos(train, corporation)
+        def upgradable?(train)
+          train.variants.values.include? { |item| @game.train_of_size?(item, corporation.type) }
+        end
+        # TODO - figure out which parts of my diff are usable and helpful
+        def upgrade_info(train, corporation)
+          return unless upgradeable?(train)
+
           variant = train.variants.values.find { |item| @game.train_of_size?(item, corporation.type) }
-          return nil, nil unless variant
 
           upgrade_price = [(variant[:price] - train.price), 0].max
+
           [variant[:name], upgrade_price]
         end
       end

@@ -27,17 +27,19 @@ module View
           }
           train_options = [h('span.margined', train_props, train.name)]
 
-          train_name, upgrade_price = step.upgrade_infos(train, corporation)
-          train_options << h(:button, {
-                               on: {
-                                 click: lambda {
-                                   process_action(Engine::Action::SwapTrain.new(corporation, train: train))
+          # TODO stash this change since i don't seem to understand it very well
+          if step.upgradable?(train)
+            upgraded_train_name, upgrade_price = step.upgrade_info(train, corporation)
+            train_options << h(:button, {
+                                 on: {
+                                   click: lambda {
+                                     process_action(Engine::Action::SwapTrain.new(corporation, train: train))
+                                   },
                                  },
                                },
-                             },
-                             "Upgrade to #{train_name}
-                             (#{@game.format_currency(upgrade_price)})") unless train_name.nil?
-
+                               "Upgrade to #{upgraded_train_name}
+                             (#{@game.format_currency(upgrade_price)})")
+          end
           train_options << h(:button, {
                                on: {
                                  click: lambda {
@@ -57,7 +59,7 @@ module View
         children << h(Map, game: @game) if @game.round.operating?
 
         h(:div, [
-          h(:div, { style: { marginBottom: '1rem', fontWeight: 'bold' } }, 'Keep, Scrap or Upgrade Trains'),
+          h(:div, { style: { marginBottom: '1rem', fontWeight: 'bold' } }, 'Upgrade or Scrap Trains'),
           *children,
         ])
       end

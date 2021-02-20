@@ -7,21 +7,7 @@ module Engine
     module G18CZ
       class ReduceTokens < ReduceTokens
         def description
-          'Choose tokens to remove in hexes with multiple tokens'
-        end
-
-        def available_hex(entity, hex)
-          return false unless entity == surviving
-
-          surviving_token = entity.tokens.find { |t| t.used && t.city.hex == hex }
-          acquired_token = others_tokens(acquired_corps).find { |t| t.used && t.city.hex == hex }
-
-          # Force user to clear up the NY tile first, then choose the others
-          if tokens_in_same_hex(entity, acquired_corps)
-            surviving_token && acquired_token
-          else
-            false
-          end
+          'Choose one token to remove from each hex with conflicting tokens'
         end
 
         def process_remove_token(action)

@@ -16,6 +16,8 @@ module View
         @corporation = @game.current_entity
         children = []
 
+        # TODO - only show companies that can be legally acquired (.5*share price is available)
+        # TODO - max out price slider by default to the highest price affordable to buyer
         hidden_corps = false
         @show_other_players = true if @step.show_other_players
         @game.corporations.select { |item| @step.can_buy?(@corporation, item) }.each do |target|
@@ -37,7 +39,14 @@ module View
                         'Hide corporations from other players')
         end
 
-        h(:div, children)
+        h(:div, [
+          h(:div, { style: { marginTop: '1rem', marginBottom: '1rem', fontWeight: 'bold' } },
+            "Acquire a smaller corporation and its treasury, private companies, tokens, and trains.
+            Choose a price to pay for each share in players\'s hands
+            between 50% and 150% of its current share price, paid out of
+             #{@corporation.name}\'s current treasury of #{@game.format_currency(@corporation.cash)}."),
+          *children,
+        ])
       end
 
       def render_input

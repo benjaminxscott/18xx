@@ -15,32 +15,40 @@ module View
           },
         }
         step = @game.active_step
-        overflow = step.crowded_corps.map do |corporation|
+        # TODO - this assumes there's only one corp thrown into crowded_corps, which unsure as to how it could happen where multiple are in there, like who chooses?
+        children = []
+        step.crowded_corps.map do |corporation|
           trains = step.trains(corporation).map do |train|
+            @corp = corporation
             train_props = {
               style: {
-                display: 'inline-block',
-                cursor: 'pointer',
                 border: 'solid 1px gainsboro',
                 padding: '0.5rem',
+                width: 'fit-content',
               },
-              on: { click: -> { process_action(Engine::Action::DiscardTrain.new(corporation, train: train)) } },
             }
-
-            h('div.margined', train_props, train.name)
+            train_options = [h('span.margined', train_props, train.name)]
+            train_options << h(:button, {
+                                 on: {
+                                   click: lambda {
+                                     process_action(Engine::Action::DiscardTrain.new(corporation, train: train))
+                                   },
+                                 },
+                               }, 'Discard')
+            h('div.margined', train_options)
           end
 
-          h(:div, block_props, [
+          children << h(:div, block_props, [
             h(Corporation, corporation: corporation),
             h(:div, trains),
           ])
+
+          children << h(Map, game: @game) if @game.round.operating?
         end
 
-        overflow << h(Map, game: @game) if @game.round.is_a?(Engine::Round::Operating)
-
         h(:div, [
-          h(:div, { style: { marginBottom: '1rem', fontWeight: 'bold' } }, 'Discard Trains'),
-          *overflow,
+          h(:div, { style: { marginTop: '1rem', marginBottom: '1rem', fontWeight: 'bold' } }, "#{@corp.name} must choose trains to discard until below train limit of #{@game.phase.train_limit(@corp)}"),
+          *children,
         ])
       end
     end

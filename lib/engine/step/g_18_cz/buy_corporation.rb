@@ -18,69 +18,74 @@ module Engine
         end
 
         def description
-          'Buy Corporations'
+          'Acquire Corporation'
         end
 
         def process_buy_corporation(action)
-          entity = action.entity
-          corporation = action.corporation
-          price = action.price
+          buyer = action.entity
+          bought_corp = action.corporation
+          price_per_share = action.price
 
-          max_cost = corporation.num_player_shares * price
+          max_cost = bought_corp.num_player_shares * price_per_share
           raise GameError,
-                "#{entity.name} cannot buy #{corporation.name} for #{price} per share.
-                 #{max_cost} is needed but only #{entity.cash} available" if entity.cash < max_cost
+                "#{buyer.name} cannot buy #{bought_corp.name} for #{price_per_share} per share.
+                 #{max_cost} is needed but only #{buyer.cash} available" if buyer.cash < max_cost
 
           @game.players.each do |player|
-            num = player.num_shares_of(corporation, ceil: false)
-            if num.positive?
-              entity.spend(num * price, player)
-              @log << "Player #{player.name} receives #{num * price} for #{num} shares from #{entity.name}"
-            end
+            num_shares = player.num_shares_of(bought_corp, ceil: false)
+            next unless num_shares.positive?
+
+            buyer.spend(num_shares * price_per_share, player)
+            @log << "#{player.name} receives #{num_shares * price_per_share}
+             for #{num_shares} shares of #{bought_corp.name} from #{buyer.name}"
           end
           receiving = []
 
-          receiving << @game.format_currency(corporation.cash)
-          corporation.spend(corporation.cash, entity) if corporation.cash.positive?
+          receiving << @game.format_currency(bought_corp.cash)
+          bought_corp.spend(bought_corp.cash, buyer)
 
-          companies = @game.transfer(:companies, corporation, entity).map(&:name)
+          companies = @game.transfer(:companies, bought_corp, buyer).map(&:name)
           receiving << "companies (#{companies.join(', ')})" if companies.any?
 
-          trains = @game.transfer(:trains, corporation, entity)
+          trains = @game.transfer(:trains, bought_corp, buyer)
 
           unless trains.empty?
             receiving << "trains (#{trains.map(&:name)})"
 
             @round.bought_trains << {
-              entity: entity,
+              buyer: buyer,
               trains: trains,
             }
           end
 
-          remove_duplicate_tokens(entity, corporation)
-          tokens_to_clear = tokens_in_same_hex(entity, corporation)
+          remove_duplicate_tokens(buyer, bought_corp)
+          tokens_to_clear = tokens_in_same_hex(buyer, bought_corp)
           if tokens_to_clear
-            @round.corporations_removing_tokens = [entity, corporation]
+            @round.corporations_removing_tokens = [buyer, bought_corp]
           else
-            move_tokens_to_surviving(entity, corporation, price_for_new_token: @game.new_token_price,
-                                                          check_tokenable: false)
+            move_tokens_to_surviving(buyer, bought_corp, price_for_new_token: @game.new_token_price,
+                                                         check_tokenable: false)
+            @game.close_corporation(bought_corp)
+            bought_corp.close!
+          end
+          buyer.tokens.each do |token|
+            # after acquisition, the larger corp forfeits their $40 token
+            token.price = @game.new_token_price
           end
           receiving <<
-              "and tokens (#{corporation.tokens.size}: hexes #{corporation.tokens.map do |token|
-                                                                 token.city&.hex&.id
-                                                               end.compact.uniq})"
+              "and tokens (#{bought_corp.tokens.size}: hexes #{bought_corp.tokens.map do |token|
+                                                              token.city&.hex&.id
+                                                            end.compact.uniq})"
 
-          @log << "#{entity.name} buys #{corporation.name}
-          for #{@game.format_currency(price)} per share receiving #{receiving.join(', ')}"
+          @log << "#{buyer.name} buys #{bought_corp.name}
+            for #{@game.format_currency(price_per_share)} per share receiving #{receiving.join(', ')}"
 
-          return if tokens_to_clear
+          return unless tokens_to_clear
 
-          @game.close_corporation(corporation)
-          corporation.close!
         end
 
         def pass_description
-          @acted ? 'Done (Corporations)' : 'Skip (Corporations)'
+          @acted ? 'Done (Acquire Corporations)' : 'Skip (Acquire Corporations)'
         end
 
         def can_buy?(entity, corporation)
@@ -114,19 +119,6 @@ module Engine
 
         def tokens_in_same_hex(surviving, others)
           (surviving.tokens.map { |t| t.city&.hex } & others_tokens(others).map { |t| t.city&.hex }).any?
-        end
-
-        def remove_duplicate_tokens(surviving, others)
-          # If there are 2 station markers on the same city the
-          # surviving company must remove one and place it on its charter.
-
-          others = others_tokens(others).map(&:city).compact
-          surviving.tokens.each do |token|
-            # after acquisition, the larger corp forfeits their $40 token
-            token.price = @game.new_token_price
-            city = token.city
-            token.remove! if others.include?(city)
-          end
         end
       end
     end
