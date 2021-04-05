@@ -20,8 +20,9 @@ module Engine
           {
             sym: :Clemens,
             short_name: 'Clemens',
-            desc: 'all Privates and minors are available, 4-3-2-1-1-2-3-4, Minors start when Bay 50%',
-          },        
+            desc: 'All Privates and minors are available, 4-3-2-1-1-2-3-4.\
+             Minor companies start when 50% of shares are in player hands',
+          },
           ].freeze
       end
     end
