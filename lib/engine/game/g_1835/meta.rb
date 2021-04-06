@@ -20,8 +20,8 @@ module Engine
           {
             sym: :Clemens,
             short_name: 'Clemens',
-            desc: 'All Privates and minors are available, 4-3-2-1-1-2-3-4.\
-             Minor companies start when 50% of shares are in player hands',
+            desc: 'All private companies and minors are available, 4-3-2-1-1-2-3-4.\
+             Minor companies can only start after the Bayrische Eisenbahn major floats.',
           },
           ].freeze
       end
