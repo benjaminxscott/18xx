@@ -29,7 +29,6 @@ module Engine
         share_price = action.share_price
         corporation = action.corporation
         @game.stock_market.set_par(corporation, share_price)
-        @game.share_pool.buy_shares(action.entity, corporation.shares.first, exchange: :free)
         @game.after_par(corporation)
         @round.companies_pending_par.shift
       end

@@ -43,7 +43,7 @@ module Engine
       ipoed = corporation.ipoed
       floated = corporation.floated?
 
-      corporation.ipoed = true if bundle.presidents_share
+      corporation.ipoed = true if bundle.presidents_share and not exchange
       price = bundle.price
       par_price = corporation.par_price&.price
 

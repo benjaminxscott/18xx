@@ -742,11 +742,8 @@ module Engine
       def after_buy_company(player, company, _price)
         abilities(company, :shares) do |ability|
           ability.shares.each do |share|
-            if share.president
-              @round.companies_pending_par << company
-            else
-              share_pool.buy_shares(player, share, exchange: :free)
-            end
+            share_pool.buy_shares(player, share, exchange: :free)
+            @round.companies_pending_par << company if share.president
           end
         end
       end
@@ -1426,6 +1423,7 @@ module Engine
       def after_par(corporation)
         return unless corporation.capitalization == :incremental
 
+        corporation.ipoed = true
         all_companies_with_ability(:shares) do |company, ability|
           next unless corporation.name == ability.shares.first.corporation.name
 
