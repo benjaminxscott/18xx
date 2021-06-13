@@ -305,6 +305,7 @@ module Engine
           gray: { ['D1'] => 'town=revenue:10;path=a:4,b:_0;path=a:5,b:_0' },
           white: {
             %w[A12
+               B23
                B25
                C16
                D7
@@ -318,80 +319,85 @@ module Engine
                E20
                E24
                E26
+               F5
                F9
                F15
                F17
                F19
                F25
+               G6
+               G4
                G8
+               G26
                H9
                H13
-               H21] => '',
-            %w[H23 I14] => 'border=edge:5,type:offboard',
-            %w[J13 I22 G26] => 'border=edge:4,type:offboard',
-            ['B23'] => 'border=edge:2,type:offboard',
-            %w[F5 I20] => 'border=edge:1,type:offboard',
-            ['G4'] => 'border=edge:2,type:offboard;border=edge:5,type:offboard',
-            %w[G6 H19 H25] => 'border=edge:0,type:offboard',
+               H19
+               H21
+               H23
+               H25
+               I14
+               I20
+               I22
+               J13] => '',
             %w[A16 C22 I8] => 'upgrade=cost:40,terrain:mountain',
             ['B21'] =>
-              'upgrade=cost:40,terrain:mountain;border=edge:1,type:offboard;border=edge:3,type:offboard',
-            ['C4'] => 'upgrade=cost:40,terrain:mountain;border=edge:3,type:offboard',
+              'upgrade=cost:40,terrain:mountain',
+            ['C4'] => 'upgrade=cost:40,terrain:mountain',
             ['B7'] =>
-              'upgrade=cost:40,terrain:mountain;border=edge:3,type:offboard;border=edge:1,type:offboard',
+              'upgrade=cost:40,terrain:mountain',
             %w[A14 D29 E28 E6 H15 G14] => 'upgrade=cost:20,terrain:hill',
-            ['F27'] => 'upgrade=cost:20,terrain:hill;border=edge:5,type:offboard',
+            ['F27'] => 'upgrade=cost:20,terrain:hill',
             ['C6'] =>
-              'town=revenue:0;upgrade=cost:40,terrain:mountain;border=edge:2,type:offboard',
+              'town=revenue:0;upgrade=cost:40,terrain:mountain',
             %w[J11 G18] => 'town=revenue:0;upgrade=cost:20,terrain:hill',
             ['H17'] =>
-              'town=revenue:0;upgrade=cost:20,terrain:hill;border=edge:5,type:offboard',
+              'town=revenue:0;upgrade=cost:20,terrain:hill',
             ['H7'] =>
-              'town=revenue:0;upgrade=cost:20,terrain:hill;border=edge:1,type:offboard',
+              'town=revenue:0;upgrade=cost:20,terrain:hill',
             ['B17'] =>
-              'town=revenue:0;upgrade=cost:20,terrain:hill;border=edge:4,type:offboard',
+              'town=revenue:0;upgrade=cost:20,terrain:hill',
             ['G16'] => 'city=revenue:0;upgrade=cost:20,terrain:hill',
             %w[D11 D15 G10 H11] => 'upgrade=cost:10,terrain:water',
             ['D13'] => 'upgrade=cost:10,terrain:water;stub=edge:0',
-            ['C18'] => 'upgrade=cost:10,terrain:water;border=edge:3,type:offboard',
+            ['C18'] => 'upgrade=cost:10,terrain:water',
             %w[F11 C10 C12] => 'town=revenue:0;upgrade=cost:10,terrain:water',
             ['A10'] =>
-              'town=revenue:0;upgrade=cost:10,terrain:water;border=edge:1,type:offboard',
+              'town=revenue:0;upgrade=cost:10,terrain:water',
             %w[D17 E16] => 'city=revenue:0;upgrade=cost:10,terrain:water',
             %w[B11 C24 E22 G24 G12 E10 D3 D5 F23 I10] =>
               'city=revenue:0',
             %w[B13 I12 F7 C26 G20] => 'city=revenue:0;label=Y',
             %w[C14 G22 C28] => 'town=revenue:0',
             ['F13'] => 'town=revenue:0;stub=edge:2',
-            ['E4'] => 'town=revenue:0;border=edge:0,type:offboard',
-            ['E2'] => 'town=revenue:0;border=edge:5,type:offboard',
-            ['C20'] => 'town=revenue:0;border=edge:2,type:offboard',
+            ['E4'] => 'town=revenue:0',
+            ['E2'] => 'town=revenue:0',
+            ['C20'] => 'town=revenue:0',
             %w[E14 F21 B15] => 'town=revenue:0;town=revenue:0',
             ['E12'] => 'city=revenue:20,groups:Praha;city=revenue:20,groups:Praha;'\
                          'path=a:5,b:_0;path=a:3,b:_1;label=P;upgrade=cost:10,terrain:water',
+          },
+          red: {
             %w[A8 B5] =>
-              'label=SX;border=edge:0,type:offboard;border=edge:5,type:offboard;border=edge:4,type:offboard',
+              'label=SX;stub=edge:0;stub=edge:4;stub=edge:5',
             ['B19'] =>
-              'label=PR;border=edge:0,type:offboard;border=edge:5,type:offboard;border=edge:4,type:offboard;' \
-              'border=edge:1,type:offboard',
-            ['A22'] => 'label=PR;border=edge:0,type:offboard;border=edge:5,type:offboard',
+              'label=PR;stub=edge:0;stub=edge:1;stub=edge:4;stub=edge:5',
+            ['A22'] => 'label=PR;stub=edge:0;stub=edge:5;',
             ['H5'] =>
-              'label=BY;border=edge:2,type:offboard;border=edge:3,type:offboard;border=edge:4,type:offboard',
+              'label=BY;stub=edge:2;stub=edge:3;stub=edge:4',
             ['F3'] =>
-              'label=BY;border=edge:2,type:offboard;border=edge:3,type:offboard;border=edge:4,type:offboard;' \
-              'border=edge:5,type:offboard',
+              'label=BY;stub=edge:2;stub=edge:3;stub=edge:4;stub=edge:5',
             ['I18'] =>
-              'label=kk;border=edge:2,type:offboard;border=edge:3,type:offboard;border=edge:4,type:offboard',
-            ['J15'] => 'label=kk;border=edge:1,type:offboard;border=edge:2,type:offboard',
+              'label=kk;stub=edge:2;stub=edge:3;stub=edge:4',
+            ['J15'] => 'label=kk;stub=edge:1;stub=edge:2',
             ['I24'] =>
-              'label=Ug;border=edge:1,type:offboard;border=edge:2,type:offboard;border=edge:3,type:offboard',
+              'label=Ug;stub=edge:1;stub=edge:2;stub=edge:3',
             ['G28'] =>
-              'label=Ug;border=edge:1,type:offboard;border=edge:2,type:offboard',
+              'label=Ug;stub=edge:1;stub=edge:2',
           },
           yellow: {
             %w[D27 C8] => 'city=revenue:0;city=revenue:0;label=OO',
             ['B9'] =>
-              'city=revenue:0;city=revenue:0;label=OO;upgrade=cost:10,terrain:water;border=edge:2,type:offboard',
+              'city=revenue:0;city=revenue:0;label=OO;upgrade=cost:10,terrain:water',
           },
         }.freeze
       end
