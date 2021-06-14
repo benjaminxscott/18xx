@@ -84,6 +84,7 @@ module Engine
           end
 
           def legal_tile_rotation?(entity, hex, tile)
+            return true if tile.color == :red
             return false unless @game.legal_tile_rotation?(entity, hex, tile)
 
             old_paths = hex.tile.paths
