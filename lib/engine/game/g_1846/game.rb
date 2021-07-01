@@ -255,21 +255,22 @@ module Engine
             remove_icons(self.class::LITTLE_MIAMI_HEXES, self.class::ABILITY_ICONS['LM'])
           end
 
-          remove_from_group!(orange_group, @companies) do |company|
+          remove_from_group!(orange_group, @companies, true) do |company|
             ability_with_icons = company.abilities.find { |ability| ability.type == 'tile_lay' }
             remove_icons(ability_with_icons.hexes, self.class::ABILITY_ICONS[company.id]) if ability_with_icons
             company.close!
             @round.active_step.companies.delete(company)
           end
-          remove_from_group!(blue_group, @companies) do |company|
+          remove_from_group!(blue_group, @companies, true) do |company|
             ability_with_icons = company.abilities.find { |ability| ability.type == 'assign_hexes' }
             remove_icons(ability_with_icons.hexes, self.class::ABILITY_ICONS[company.id]) if ability_with_icons
             company.close!
             @round.active_step.companies.delete(company)
           end
 
+
           corporation_removal_groups.each do |group|
-            remove_from_group!(group, @corporations) do |corporation|
+            remove_from_group!(group, @corporations, false) do |corporation|
               place_home_token(corporation)
               ability_with_icons = corporation.abilities.find { |ability| ability.type == 'tile_lay' }
               remove_icons(ability_with_icons.hexes, self.class::ABILITY_ICONS[corporation.id]) if ability_with_icons
@@ -279,6 +280,7 @@ module Engine
               place_second_token(corporation)
             end
           end
+          puts '--blah--'
 
           @cert_limit = init_cert_limit
 
@@ -313,10 +315,12 @@ module Engine
           two_player? ? 0 : 1
         end
 
-        def remove_from_group!(group, entities)
+        def remove_from_group!(group, entities, is_private_company_group)
           group -= ['Boomtown', 'Little Miami', 'C&O'] if @optional_rules.include?(:second_ed_co)
+          num_removals = num_removals(is_private_company_group)
+          puts num_removals
+          removals = group.sort_by { rand }.take(num_removals)
 
-          removals = group.sort_by { rand }.take(num_removals(group))
           # This looks verbose, but it works around the fact that we can't
           # modify code which includes rand() w/o breaking existing games
           return if removals.empty?
@@ -346,16 +350,11 @@ module Engine
           @minors.select(&:floated?) + corporations
         end
 
-        def num_removals(group)
-          additional =
-            case group
-            when BLUE_GROUP, ORANGE_GROUP
-              (first_edition? ? 0 : 1)
-            else
-              0
-            end
+        def num_removals(is_private_company_group)
+          # we always remove at least one private company in the 2nd edition
+          additional_removals = 1 if is_private_company_group && !first_edition?
 
-          (two_player? ? 1 : 5 - @players.size) + additional
+          (two_player? ? 1 : 5 - @players.size) + additional_removals
         end
 
         def corporation_removal_groups
