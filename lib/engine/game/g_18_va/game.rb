@@ -562,16 +562,16 @@ module Engine
         MINE_HEXES = %w[B5 B7 B9 B11 B13].freeze
         EVENTS_TEXT = Base::EVENTS_TEXT.merge(
           'forced_conversions' => ['Forced Conversions',
-                                   'All remaining 5 share corporations immediately convert to 10 share corporations']
+                                   'Remaining 5 share corporations immediately convert to 10 share corporations']
         ).freeze
         STATUS_TEXT = Base::STATUS_TEXT.merge(
-          'cmd_token_bonus' => ['CMD Bonus Income', 'nG trains running to CMD zones with a corporation\'s token get '\
-                                                    'a $20 x n bonus to their treasury'],
-          'offboard_token_bonus' => ['Offboard Bonus', 'n trains running to red offboards with a corporation\'s '\
-                                                       'token in it double the value of the offboard'],
+          'cmd_token_bonus' => ['CMD Bonus', 'Each nG train running to a Coal Mining District (CMD) stop with a corporation\'s token get '\
+                                                    'a n * $20 bonus to corporation\'s treasury'],
+          'offboard_token_bonus' => ['Offboard Bonus', 'Each n train running to an offboard stop with a corporation\'s '\
+                                                       'token doubles that stop\'s value'],
           'may_convert' => ['Corporations May Convert',
-                            'At the start of a corporations Operating turn it
-                           may choose to convert to a 10 share corporation'],
+                            'At the start of a corporation\'s operation it
+                           may convert to a 10 share corporation'],
         ).freeze
 
         include CompanyPrice50To150Percent
