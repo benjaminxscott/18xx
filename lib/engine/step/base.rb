@@ -32,9 +32,15 @@ module Engine
         []
       end
 
+      def auto_actions(_entity); end
+
       def available_hex(entity, hex); end
 
       def did_sell?(_corporation, _entity)
+        false
+      end
+
+      def last_acted_upon?(_corporation, _entity)
         false
       end
 
@@ -57,9 +63,10 @@ module Engine
       end
 
       def current_actions
-        return [] if current_entity&.closed?
+        entity = current_entity
+        return [] if !entity || entity.closed?
 
-        current_entity ? actions(current_entity) : []
+        actions(entity)
       end
 
       def current_entity
@@ -113,6 +120,8 @@ module Engine
       end
 
       def try_take_loan(entity, price); end
+
+      def try_take_player_loan(entity, price); end
 
       def inspect
         "<#{self.class.name}>"

@@ -97,6 +97,15 @@ Compose documentation:
 - https://docs.docker.com/compose/
 - https://docs.docker.com/compose/compose-file/
 
+#### Can I use [Podman](https://podman.io/) instead of Docker?
+
+Yes.
+
+```
+make CONTAINER_ENGINE=podman …
+```
+
+
 #### Before filing a pull request
 
 Run `docker-compose exec rack rake` while a docker instance is running to run rubocop (to ensure your changes meet the project's code style guidelines) as well as the test suite.
@@ -116,7 +125,7 @@ Once a game has been made available on the website, bugs may be found where the 
 
 1. Update `repair` within `migrate_game.rb` with the logic required to add/delete a step
 2. Run `docker-compose exec rack irb`
-3. Execute `require migrate_game.rb`
+3. Execute `load "migrate_game.rb"`
 4. Execute `migrate_json('your_json_file.json')`
 
 This will apply the migrations to the game file you specified, allowing you to verify it worked as expected.

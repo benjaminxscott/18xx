@@ -1,63 +1,44 @@
 # frozen_string_literal: true
 
-require '../lib/storage'
+require 'lib/settings'
 
 module View
   module Game
     class MapControls < Snabberb::Component
-      needs :show_coords, default: nil, store: true
-      needs :show_location_names, default: true, store: true
+      include Lib::Settings
       needs :show_starting_map, default: false, store: true
       needs :historical_routes, default: [], store: true
+      needs :historical_laid_hexes, default: nil, store: true
       needs :game, default: nil, store: true
-      needs :map_zoom, default: nil, store: true
 
       def render
         children = [
-          location_names_controls,
-          hex_coord_controls,
+          render_controls('Player Colors', :show_player_colors),
+          render_controls('Simple Logos', :simple_logos),
+          render_controls('Location Names', :show_location_names),
+          render_controls('Hex Coordinates', :show_coords),
           starting_map_controls,
           route_controls,
-          map_zoom_controls,
         ].compact
 
-        h(:div, children)
+        h('div#map_controls', children)
       end
 
-      def location_names_controls
-        show_hide = @show_location_names ? 'Hide' : 'Show'
-        text = "#{show_hide} Location Names"
-
+      def render_controls(label, option)
         on_click = lambda do
-          new_value = !@show_location_names
-          Lib::Storage['show_location_names'] = new_value
-          store(:show_location_names, new_value)
+          toggle_setting(option, @game)
+          update
         end
 
-        render_button(text, on_click)
-      end
-
-      def hex_coord_controls
-        show_hide = @show_coords ? 'Hide' : 'Show'
-        text = "#{show_hide} Hex Coordinates"
-
-        on_click = lambda do
-          new_value = !@show_coords
-          Lib::Storage['show_coords'] = new_value
-          store(:show_coords, new_value)
-        end
-
-        render_button(text, on_click)
+        render_button("#{label} #{setting_for(option, @game) ? '✅' : '❌'}", on_click)
       end
 
       def starting_map_controls
-        text = @show_starting_map ? 'Show Current Map' : 'Show Starting Map'
-
         on_click = lambda do
           store(:show_starting_map, !@show_starting_map)
         end
 
-        render_button(text, on_click)
+        render_button("Starting Map #{@show_starting_map ? '✅' : '❌'}", on_click)
       end
 
       def generate_last_route(entity)
@@ -67,12 +48,17 @@ module View
 
         halts = operating[operating.keys.max]&.halts
         routes = []
-        last_run.each do |train, connections|
-          routes << Engine::Route.new(@game, @game.phase, train, connection_hexes: connections,
+        last_run.each do |train, connection_hexes|
+          routes << Engine::Route.new(@game, @game.phase, train, connection_hexes: connection_hexes,
                                                                  routes: routes, num_halts: halts[train])
         end
 
         routes
+      end
+
+      def last_laid_hexes(entity)
+        operating = entity.operating_history
+        operating[operating.keys.max]&.laid_hexes || []
       end
 
       def route_controls
@@ -100,14 +86,16 @@ module View
           operator_name = Native(@route_input).elm&.value
           operator = all_operators.find { |o| o.name == operator_name }
           if operator
-            store(:historical_routes, generate_last_route(operator))
+            store(:historical_routes, generate_last_route(operator), skip: true)
+            store(:historical_laid_hexes, last_laid_hexes(operator))
           else
-            store(:historical_routes, [])
+            store(:historical_routes, [], skip: true)
+            store(:historical_laid_hexes, nil)
           end
         end
 
         @route_input = render_select(id: :route, on: { input: route_change }, children: operators)
-        h('label.inline-block', ['Show Last Route For:', @route_input])
+        h('label.inline-block', ['Show Last Route and Tile For:', @route_input])
       end
 
       def render_select(id:, on: {}, children: [])
@@ -118,21 +106,6 @@ module View
           on: { **on },
         }
         h(:select, input_props, children)
-      end
-
-      def map_zoom_controls
-        on_click = lambda do |z|
-          lambda do
-            store(:map_zoom, z)
-            Lib::Storage['map_zoom'] = z
-          end
-        end
-
-        h('div.inline-block', [
-          render_button('Zoom out', on_click.call(@map_zoom / 1.1)),
-          render_button('Default zoom', on_click.call(1)),
-          render_button('Zoom in', on_click.call(@map_zoom * 1.1)),
-        ])
       end
 
       def render_button(text, action)

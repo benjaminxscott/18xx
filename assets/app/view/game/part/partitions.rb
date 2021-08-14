@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'lib/color'
 require 'lib/hex'
 require 'lib/settings'
 require 'view/game/part/base'
@@ -9,11 +8,11 @@ module View
   module Game
     module Part
       class Partitions < Base
-        include Lib::Color
         include Lib::Settings
 
         needs :tile
         needs :region_use, default: nil
+        needs :game, default: nil, store: true
         needs :user, default: nil, store: true
 
         VERTICES = {
@@ -39,6 +38,8 @@ module View
               :blue
             when :impassable
               :red
+            when :divider
+              :black
             end
 
           setting_for(color)
@@ -52,8 +53,8 @@ module View
           children = []
 
           @tile.partitions.each do |partition|
-            next if partition.blockers.none? do |blocker|
-              blocker.all_abilities.find { |a| a.type == :blocks_partition && a.blocks?(partition.type) }
+            next if partition.type != :divider && partition.blockers.none? do |blocker|
+              @game&.abilities(blocker, :blocks_partition)&.blocks?(partition.type)
             end
 
             a_control = VERTICES[(partition.a + partition.a_sign) % 6]
@@ -76,7 +77,7 @@ module View
             magnet_str = ''
             if partition.restrict
               magnet = ((partition.a + partition.b) / 2).to_i
-              magnet = (magnet + 3) % 6 if @restrict == 'inner'
+              magnet = (magnet + 3) % 6 if partition.restrict == 'inner'
               magnet = VERTICES[magnet].map { |x| x * 0.5 }
 
               magnet_control = [vertex_a, vertex_b, magnet].transpose.map { |a, b, m| m - (b - a) * 2 / 7 }
@@ -88,7 +89,7 @@ module View
             children << h(:path, attrs: {
                             d: d,
                             stroke: color(partition),
-                            'stroke-width': '5',
+                            'stroke-width': '8',
                           })
           end
 

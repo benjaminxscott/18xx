@@ -9,6 +9,8 @@ end
 
 module Engine
   module Abilities
+    attr_reader :abilities
+
     def init_abilities(abilities)
       @abilities = []
 
@@ -19,12 +21,13 @@ module Engine
         @abilities << ability
       end
 
-      @start_count = @abilities.map(&:start_count).compact.max
+      update_start_counter!
     end
 
     def add_ability(ability)
       ability.owner = self
       @abilities << ability
+      update_start_counter!
     end
 
     def remove_ability(ability)
@@ -43,7 +46,11 @@ module Engine
     end
 
     def reset_ability_count_this_or!
-      @abilities.each { |a| a.count_this_or = 0 }
+      @abilities.each do |ability|
+        ability.count_this_or = 0
+
+        ability.use_up! if ability.used? && !ability.use_across_ors
+      end
     end
 
     def ability_uses
@@ -56,6 +63,10 @@ module Engine
         count = [a.count, a.start_count] if a.start_count
       end
       count
+    end
+
+    def update_start_counter!
+      @start_count = @abilities.map(&:start_count).compact.max
     end
   end
 end

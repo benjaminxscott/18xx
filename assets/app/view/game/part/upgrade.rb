@@ -8,6 +8,7 @@ module View
       class Upgrade < Base
         needs :cost
         needs :terrains, default: []
+        needs :size, default: nil
 
         P_CENTER = {
           region_weights: CENTER,
@@ -19,6 +20,12 @@ module View
           region_weights: [3, 4],
           x: 30,
           y: -60,
+        }.freeze
+
+        P_BOTTOM_RIGHT_CORNER = {
+          region_weights: [22, 23],
+          x: 30,
+          y: 60,
         }.freeze
 
         P_BOTTOM_LEFT_CORNER = {
@@ -57,16 +64,17 @@ module View
             P_BOTTOM_LEFT_CORNER,
             P_RIGHT_CORNER,
             P_LEFT_CORNER,
+            P_BOTTOM_RIGHT_CORNER,
           ]
         end
 
         def render_part
           cost = h('text.number', { attrs: { fill: 'black' } }, @cost)
 
-          delta_x = -10
+          delta_x = -(size / 2)
 
           terrain = @terrains.map.with_index do |t, index|
-            delta_y = 5 + (20 * index)
+            delta_y = 5 + (size * index)
             {
               mountain: mountain(delta_x: delta_x, delta_y: delta_y),
               water: water(delta_x: delta_x, delta_y: delta_y),
@@ -74,6 +82,9 @@ module View
               desert: svg(delta_x: delta_x, delta_y: delta_y, icon: 'cactus'),
               lake: svg(delta_x: delta_x, delta_y: delta_y, icon: 'lake'),
               river: svg(delta_x: delta_x, delta_y: delta_y, icon: 'river'),
+              hill: svg(delta_x: delta_x, delta_y: delta_y, icon: 'hill'),
+              cow_skull: svg(delta_x: delta_x, delta_y: delta_y, icon: 'cow_skull'),
+              wall: svg(delta_x: delta_x, delta_y: delta_y, icon: 'wall'),
             }[t]
           end
 
@@ -102,10 +113,14 @@ module View
               href: "/icons/#{icon}.svg",
               x: delta_x,
               y: delta_y,
-              height: SIZE,
-              width: SIZE,
+              height: size,
+              width: size,
             },
           )
+        end
+
+        def size
+          @size ||= SIZE
         end
       end
     end

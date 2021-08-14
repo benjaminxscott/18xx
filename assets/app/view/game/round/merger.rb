@@ -68,7 +68,13 @@ module View
             inner << h(Corporation, corporation: auctioning_corporation || corporation_to_merge_into, selectable: false)
             inner << h(Bid, entity: entity, corporation: auctioning_corporation) if actions.include?('bid')
             children << h(:div, props, inner)
-          elsif merge_entity
+
+            if @step.respond_to?(:show_bidding_corporation?) && @step.show_bidding_corporation?
+              children << h(:div, props,
+                            [h(Corporation, corporation: entity, selectable: false)])
+            end
+
+          elsif merge_entity&.corporation?
             children << h(:div, props, [h(Corporation, corporation: merge_entity, selectable: false)])
           end
           children << h(Player, game: @game, player: entity.owner) if entity.owner.player?
@@ -160,10 +166,17 @@ module View
             if @selected_corporation
               merge_corporation = @selected_corporation
               do_merge = lambda do
-                process_action(Engine::Action::Merge.new(
-                  corporation,
-                  corporation: merge_corporation,
-                ))
+                if merge_corporation.corporation?
+                  process_action(Engine::Action::Merge.new(
+                   corporation,
+                   corporation: merge_corporation,
+                 ))
+                else
+                  process_action(Engine::Action::Merge.new(
+                   corporation,
+                   minor: merge_corporation,
+                 ))
+                end
               end
 
               if @step.show_other_players ||

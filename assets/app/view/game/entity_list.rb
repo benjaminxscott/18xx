@@ -1,17 +1,19 @@
 # frozen_string_literal: true
 
-require 'lib/truncate'
 require 'lib/settings'
+require 'lib/truncate'
 
 module View
   module Game
     class EntityList < Snabberb::Component
+      include Lib::Settings
+
       needs :round
       needs :entities
+      needs :user, default: nil, store: true
       needs :acting_entity, default: nil
       needs :game, store: true
 
-      include Lib::Settings
       TOKEN_SIZES = { small: 1.2, medium: 1.4, large: 1.8 }.freeze
 
       def render
@@ -54,7 +56,7 @@ module View
           if entity.corporation? || entity.minor?
             size = TOKEN_SIZES[@game.corporation_size(entity)]
             logo_props = {
-              attrs: { src: entity.logo },
+              attrs: { src: setting_for(:simple_logos, @game) ? entity.simple_logo : entity.logo },
               style: {
                 padding: "#{TOKEN_SIZES[:large] - size}rem 0.4rem 0 0",
                 height: "#{size}rem",
@@ -63,7 +65,7 @@ module View
             children << h(:img, logo_props)
           end
 
-          owner = " (#{entity.owner.name.truncate})" if !entity.player? && entity.owner
+          owner = " (#{@game.acting_for_entity(entity).name.truncate})" if !entity.player? && entity.owner
           owner = ' (CLOSED)' if entity.closed?
           children << h(:span, "#{entity.name}#{owner}")
 

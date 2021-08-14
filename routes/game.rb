@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative '../lib/engine'
-
 class Api
   hash_routes :api do |hr|
     hr.on 'game' do |r|
@@ -50,6 +48,8 @@ class Api
 
           # POST '/api/game/<game_id>/action'
           r.is 'action' do
+            halt(400, 'Archived games cannot be changed.') if game.status == 'archived'
+
             acting, action = nil
 
             DB.with_advisory_lock(:action_lock, game.id) do
@@ -73,6 +73,7 @@ class Api
                 game.round = meta['round']
                 game.turn = meta['turn']
                 game.acting = acting.map(&:id)
+                acting.delete(user)
 
                 game.result = meta['game_result']
                 game.status = meta['game_status']
@@ -80,6 +81,7 @@ class Api
                 game.save
               else
                 engine = Engine::Game.load(game, actions: actions_h(game))
+                prev = acting_users(engine, users)
 
                 r.params['user'] = user.id
 
@@ -94,7 +96,7 @@ class Api
                   action: action,
                 )
 
-                acting = set_game_state(game, engine, users)
+                acting = set_game_state(game, engine, users) - prev
               end
             end
 
@@ -128,9 +130,7 @@ class Api
           # POST '/api/game/<game_id>/start
           r.is 'start' do
             engine = Engine::Game.load(game, actions: [])
-            unless game.players.size.between?(*Engine.player_range(engine.class))
-              halt(400, 'Player count not supported')
-            end
+            halt(400, 'Player count not supported') unless game.players.size.between?(*engine.class::PLAYER_RANGE)
 
             acting = set_game_state(game, engine, users)
             publish_turn(acting.map(&:id), game, r.base_url, 'Your turn', false)
@@ -141,6 +141,14 @@ class Api
           # POST '/api/game/<game_id>/kick
           r.is 'kick' do
             game.remove_player(r.params['id'])
+
+            game.to_h
+          end
+
+          r.is 'player_order' do
+            game.settings['player_order'] = r.params['player_order']
+            game.save
+
             game.to_h
           end
         end
@@ -163,12 +171,14 @@ class Api
             description: r['description'],
             max_players: r['max_players'],
             settings: {
-              seed: Random.new_seed % 2**31,
+              seed: (r['seed'] || Random.new_seed) % 2**31,
+              player_order: r['player_order'],
               unlisted: r['unlisted'],
               optional_rules: r['optional_rules'],
+              auto_routing: r['auto_routing'],
             },
             title: title,
-            round: Engine::GAMES_BY_TITLE[title].new([]).round&.name,
+            round: Engine.game_by_title(title).new([]).round&.name,
           }
 
           game = Game.create(params)
@@ -184,8 +194,7 @@ class Api
   end
 
   def set_game_state(game, engine, users)
-    active_players = engine.active_players_id
-    acting = users.select { |u| active_players.include?(u.id) }
+    acting = acting_users(engine, users)
 
     game.round = engine.round.name
     game.turn = engine.turn
@@ -203,14 +212,19 @@ class Api
     acting
   end
 
+  def acting_users(engine, users)
+    active_players = engine.active_players_id
+    users.select { |u| active_players.include?(u.id) }
+  end
+
   def publish_turn(user_ids, game, url, type, force)
-    game_id = game.id
+    return if game.settings['pin']
 
     MessageBus.publish(
       '/turn',
       user_ids: user_ids,
-      game_id: game_id,
-      game_url: "#{url}/game/#{game_id}",
+      game_id: game.id,
+      game_url: "#{url}/game/#{game.id}",
       type: type,
       force: force,
     )

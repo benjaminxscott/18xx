@@ -11,7 +11,7 @@ module View
         needs :corporation
 
         def render
-          step = @game.round.active_step
+          step = @game.round.step_for(@entity, 'bid')
           min_increment = step.min_increment
 
           min_bid = step.min_bid(@corporation)
@@ -19,7 +19,7 @@ module View
           price_input = h(:input, style: { marginRight: '1rem' }, props: {
                             value: min_bid,
                             step: min_increment,
-                            min: min_bid + min_increment,
+                            min: min_bid,
                             max: max_bid,
                             type: 'number',
                             size: [@entity.cash.to_s.size, max_bid.to_s.size].max,
@@ -28,7 +28,8 @@ module View
           place_bid = lambda do
             process_action(Engine::Action::Bid.new(
               @entity,
-              corporation: @corporation,
+              corporation: @corporation.corporation? ? @corporation : nil,
+              company: @corporation.company? ? @corporation : nil,
               price: Native(price_input)[:elm][:value].to_i,
             ))
           end

@@ -15,10 +15,10 @@ module Engine
     include Config::Tile
 
     attr_accessor :blocks_lay, :hex, :icons, :index, :legal_rotations, :location_name,
-                  :name, :opposite, :reservations, :upgrades
-    attr_reader :borders, :cities, :color, :edges, :junction, :nodes, :label,
+                  :name, :opposite, :reservations, :upgrades, :color
+    attr_reader :borders, :cities, :edges, :junction, :nodes, :labels,
                 :parts, :preprinted, :rotation, :stops, :towns, :offboards, :blockers,
-                :city_towns, :unlimited, :stubs, :partitions, :id, :frame
+                :city_towns, :unlimited, :stubs, :partitions, :id, :frame, :stripes, :hidden
 
     ALL_EDGES = [0, 1, 2, 3, 4, 5].freeze
 
@@ -29,8 +29,22 @@ module Engine
         color = :yellow
       elsif (code = GREEN[name])
         color = :green
+      elsif (code = GREENBROWN[name])
+        color = :green
+        code = if code.size.positive?
+                 'stripes=color:brown;' + code
+               else
+                 'stripes=color:brown'
+               end
       elsif (code = BROWN[name])
         color = :brown
+      elsif (code = BROWNGRAY[name])
+        color = :brown
+        code = if code.size.positive?
+                 'stripes=color:gray;' + code
+               else
+                 'stripes=color:gray'
+               end
       elsif (code = GRAY[name])
         color = :gray
       elsif (code = RED[name])
@@ -66,7 +80,7 @@ module Engine
       when 'path'
         params = params.map do |k, v|
           case k
-          when 'terminal', 'a_lane', 'b_lane'
+          when 'terminal', 'a_lane', 'b_lane', 'ignore'
             [k, v]
           when 'lanes'
             [k, v.to_i]
@@ -85,7 +99,8 @@ module Engine
         Part::Path.make_lanes(params['a'], params['b'], terminal: params['terminal'],
                                                         lanes: params['lanes'], a_lane: params['a_lane'],
                                                         b_lane: params['b_lane'],
-                                                        track: params['track'])
+                                                        track: params['track'],
+                                                        ignore: params['ignore'])
       when 'city'
         city = Part::City.new(params['revenue'],
                               slots: params['slots'],
@@ -94,6 +109,7 @@ module Engine
                               visit_cost: params['visit_cost'],
                               route: params['route'],
                               format: params['format'],
+                              boom: params['boom'],
                               loc: params['loc'])
         cache << city
         city
@@ -105,6 +121,9 @@ module Engine
                               route: params['route'],
                               format: params['format'],
                               loc: params['loc'],
+                              boom: params['boom'],
+                              style: params['style'],
+                              double: params['double'],
                               to_city: params['to_city'])
         cache << town
         town
@@ -130,21 +149,24 @@ module Engine
       when 'label'
         Part::Label.new(params)
       when 'upgrade'
-        Part::Upgrade.new(params['cost'], params['terrain']&.split('|'))
+        Part::Upgrade.new(params['cost'], params['terrain']&.split('|'), params['size'])
       when 'border'
-        Part::Border.new(params['edge'], params['type'], params['cost'])
+        Part::Border.new(params['edge'], params['type'], params['cost'], params['color'])
       when 'junction'
         junction = Part::Junction.new
         cache << junction
         junction
       when 'icon'
-        Part::Icon.new(params['image'], params['name'], params['sticky'], params['blocks_lay'])
+        Part::Icon.new(params['image'], params['name'], params['sticky'], params['blocks_lay'],
+                       large: params['large'])
       when 'stub'
         Part::Stub.new(params['edge'].to_i)
       when 'partition'
         Part::Partition.new(params['a'], params['b'], params['type'], params['restrict'])
       when 'frame'
-        Part::Frame.new(params['color'])
+        Part::Frame.new(params['color'], params['color2'])
+      when 'stripes'
+        Part::Stripes.new(params['color'])
       end
     end
 
@@ -178,6 +200,7 @@ module Engine
       @stops = nil
       @edges = nil
       @frame = nil
+      @stripes = nil
       @junction = nil
       @icons = []
       @location_name = location_name
@@ -189,7 +212,9 @@ module Engine
       @blocks_lay = nil
       @reservation_blocks = opts[:reservation_blocks] || false
       @unlimited = opts[:unlimited] || false
+      @labels = []
       @opposite = nil
+      @hidden = opts[:hidden] || false
       @id = "#{@name}-#{@index}"
 
       separate_parts
@@ -206,7 +231,8 @@ module Engine
                index: @index + 1,
                location_name: @location_name,
                reservation_blocks: @reservation_blocks,
-               unlimited: @unlimited)
+               unlimited: @unlimited,
+               hidden: @hidden)
     end
 
     def <=>(other)
@@ -237,6 +263,20 @@ module Engine
 
     def exits
       @_exits ||= @edges.map { |e| rotate(e.num, @rotation) }.uniq
+    end
+
+    def ignore_gauge_walk=(val)
+      @paths.each { |p| p.ignore_gauge_walk = val }
+      @nodes.each(&:clear!)
+      @junction&.clear!
+      @_paths = nil
+    end
+
+    def ignore_gauge_compare=(val)
+      @paths.each { |p| p.ignore_gauge_compare = val }
+      @nodes.each(&:clear!)
+      @junction&.clear!
+      @_paths = nil
     end
 
     def terrain
@@ -323,11 +363,7 @@ module Engine
     def compute_loc(loc = nil)
       return nil unless loc && loc != 'center'
 
-      if loc.to_f == loc.to_i.to_f
-        (loc.to_i + @rotation) % 6
-      else
-        (loc.to_i + @rotation) % 6 + 0.5
-      end
+      (loc.to_f + @rotation) % 6
     end
 
     def compute_city_town_edges
@@ -448,12 +484,17 @@ module Engine
     end
 
     def revenue_to_render
-      @revenue_to_render ||= @stops.map(&:revenue_to_render)
+      @revenue_to_render ||= @revenue_stops.map(&:revenue_to_render)
     end
 
     # Used to set label for a recently placed tile
     def label=(label_name)
-      @label = Part::Label.new(label_name)
+      @labels.clear
+      @labels << Part::Label.new(label_name) if label_name
+    end
+
+    def label
+      @labels.last
     end
 
     def restore_borders(edges = nil)
@@ -489,7 +530,7 @@ module Engine
           @cities << part
           @city_towns << part
         elsif part.label?
-          @label = part
+          @labels << part
         elsif part.path?
           @paths << part
         elsif part.town?
@@ -512,6 +553,8 @@ module Engine
           @partitions << part
         elsif part.frame?
           @frame = part
+        elsif part.stripes?
+          @stripes = part
         else
           raise "Part #{part} not separated."
         end
@@ -525,6 +568,9 @@ module Engine
       @nodes = @paths.flat_map(&:nodes).uniq
       @stops = @paths.flat_map(&:stops).uniq
       @edges = @paths.flat_map(&:edges).uniq
+
+      # allow offboards w/o paths to render
+      @revenue_stops = (@stops + @offboards).uniq
 
       @edges.each { |e| e.tile = self }
     end

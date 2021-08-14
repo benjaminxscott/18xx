@@ -19,8 +19,19 @@ module View
         @ipo_shares = @corporation.ipo_shares.group_by(&:percent).values
           .map(&:first).sort_by(&:percent).reverse
 
-        @pool_shares = @game.share_pool.shares_by_corporation[@corporation].group_by(&:percent).values
-          .map(&:first).sort_by(&:percent).reverse
+        @treasury_shares = if @corporation.ipo_is_treasury?
+                             []
+                           else
+                             @corporation.treasury_shares.group_by(&:percent).values
+                               .map(&:first).sort_by(&:percent).reverse
+                           end
+
+        @pool_shares = if @step.respond_to?(:pool_shares)
+                         @step.pool_shares(@corporation)
+                       else
+                         @game.share_pool.shares_by_corporation[@corporation].group_by(&:percent).values
+                           .map(&:first).sort_by(&:percent).reverse
+                       end
 
         children = []
 
@@ -45,6 +56,7 @@ module View
         children = []
 
         children.concat(render_ipo_shares)
+        children.concat(render_treasury_shares)
         children.concat(render_market_shares)
         children.concat(render_corporate_shares)
         children.concat(render_price_protection)
@@ -60,8 +72,8 @@ module View
       # Do skip president's share in case there are other shares available.
       def render_market_shares
         @pool_shares.map do |share|
-          next unless @step.can_buy?(@current_entity, share)
-          next if share.president && @pool_shares.size > 1
+          next unless @step.can_buy?(@current_entity, share.to_bundle)
+          next if share.to_bundle.presidents_share && @pool_shares.size > 1
 
           h(Button::BuyShare,
             share: share,
@@ -72,7 +84,7 @@ module View
 
       def render_ipo_shares
         @ipo_shares.map do |share|
-          next unless @step.can_buy?(@current_entity, share)
+          next unless @step.can_buy?(@current_entity, share.to_bundle)
 
           h(Button::BuyShare,
             share: share,
@@ -82,10 +94,22 @@ module View
         end
       end
 
+      def render_treasury_shares
+        @treasury_shares.map do |share|
+          next unless @step.can_buy?(@current_entity, share.to_bundle)
+
+          h(Button::BuyShare,
+            share: share,
+            entity: @current_entity,
+            percentages_available: @treasury_shares.size,
+            source: 'Treasury')
+        end
+      end
+
       def render_corporate_shares
         @corporation.corporate_shares.group_by(&:corporation).values.flat_map do |corp_shares|
           corp_shares.group_by(&:percent).values.map(&:first).sort_by(&:percent).reverse.map do |share|
-            next unless @step.can_buy?(@current_entity, share)
+            next unless @step.can_buy?(@current_entity, share.to_bundle)
 
             h(Button::BuyShare,
               share: share,
@@ -130,26 +154,27 @@ module View
         [h(:button, { on: { click: short } }, 'Short Share')]
       end
 
-      # Allow privates to be exchanged for shares
+      # Allow privates or minors to be exchanged for shares if they have the ability
       def render_exchanges
         children = []
+        source_entities = @game.companies + @game.minors
 
-        @game.companies.each do |company|
-          @game.abilities(company, :exchange) do |ability|
-            next if ability.corporation != @corporation.name && ability.corporation != 'any'
-            next unless company.owner == @current_entity
+        source_entities.each do |entity|
+          @game.abilities(entity, :exchange) do |ability|
+            next unless @game.exchange_corporations(ability).include?(@corporation)
+            next unless entity.owner == @current_entity
 
             if ability.from.include?(:ipo)
               president_share, other_ipo_shares = @ipo_shares.partition(&:president)
               children.concat(render_share_exchange(other_ipo_shares,
-                                                    company,
+                                                    entity,
                                                     source: @game.ipo_name(@corporation)))
               children.concat(render_share_exchange(president_share,
-                                                    company,
+                                                    entity,
                                                     source: 'Presidency'))
             end
 
-            children.concat(render_share_exchange(@pool_shares, company)) if ability.from.include?(:market)
+            children.concat(render_share_exchange(@pool_shares, entity)) if ability.from.include?(:market)
           end
         end
 
@@ -157,19 +182,20 @@ module View
       end
 
       # Put up one exchange button for each exchangable percentage share type in market.
-      def render_share_exchange(shares, company, source: 'Market')
+      def render_share_exchange(shares, entity, source: 'Market')
         return [] unless @step.respond_to?(:can_gain?)
 
         shares.map do |share|
-          next unless @step.can_gain?(company.owner, share, exchange: true)
+          next unless @step.can_gain?(entity.owner, share, exchange: true)
           next if share.president && !@game.exchange_for_partial_presidency?
 
+          name = entity.company? ? entity.sym : entity.name
           h(Button::BuyShare,
             share: share,
-            entity: company,
+            entity: entity,
             partial_percent: @game.exchange_partial_percent(share),
             percentages_available: shares.size,
-            prefix: "Exchange #{company.sym} for ",
+            prefix: "Exchange #{name} for ",
             source: source)
         end
       end

@@ -39,9 +39,14 @@ module View
         opts = {
           color: :yellow,
           click: click,
-          message: "This action requires consent from #{player.name}!",
+          message: "Click confirm if #{player.name} has already consented to this action.",
         }
         store(:confirm_opts, opts, skip: false)
+      end
+
+      def valid_actor?(action)
+        @valid_actors = @game.valid_actors(action)
+        @valid_actors.any? { |actor| actor.id == @user['id'] }
       end
 
       def process_action(action)
@@ -60,18 +65,28 @@ module View
         end
 
         if !hotseat &&
-          !action.free? &&
-          participant? &&
-          !@game.active_players_id.include?(@user['id'])
-
-          unless Lib::Storage[@game.id]&.dig('master_mode')
-            return store(:flash_opts, 'Not your turn. Turn on master mode under the Tools menu to act for others.')
+           !action.free? &&
+           participant? &&
+           !valid_actor?(action)
+          if Lib::Storage[@game.id]&.dig('master_mode')
+            action.user = @user['id']
+          else
+            msg =
+              if @game.active_players_id.include?(@user['id'])
+                unless @valid_actors.empty?
+                  "Only #{@valid_actors.map(&:name).join(' and ')} "\
+                    'may perform that action. Turn on master mode under the Tools '\
+                    'menu to act for others.'
+                end
+              else
+                'Not your turn. Turn on master mode under the Tools menu to act '\
+                  'for others.'
+              end
+            return store(:flash_opts, msg)
           end
-
-          action.user = @user['id']
         end
 
-        game = @game.process_action(action).maybe_raise!
+        game = @game.process_action(action, add_auto_actions: true).maybe_raise!
 
         @game_data[:actions] << action.to_h
         store(:game_data, @game_data, skip: true)
@@ -94,11 +109,11 @@ module View
           json = action.to_h
           if @game_data&.dig('settings', 'pin')
             meta = {
-              'game_result': @game_data[:result],
-              'game_status': @game_data[:status],
-              'active_players': game.active_players_id,
-              'turn': game.turn,
-              'round': game.round.name,
+              game_result: @game_data[:result],
+              game_status: @game_data[:status],
+              active_players: game.active_players_id,
+              turn: game.turn,
+              round: game.round.name,
             }
             json['meta'] = meta
           end
@@ -131,7 +146,7 @@ module View
         store(:selected_action_id, nil, skip: true)
       end
 
-      def history_link(text, title, action_id = nil, style_extra = {}, as_button = false)
+      def history_link(text, title, action_id = nil, style_extra = {}, as_button = false, hotkey = nil)
         route = Lib::Params.add(@app_route, 'action', action_id)
 
         click = lambda do
@@ -144,14 +159,16 @@ module View
         props = {
           href: route,
           click: click,
-          title: title,
+          title: "#{title}#{' – hotkey: ' + hotkey if hotkey}",
           children: text,
           style: {
+            margin: '0',
             textDecoration: 'none',
             **style_extra,
           },
+          class: "#hist_#{hotkey}",
         }
-        props['class'] = '.button_link' if as_button
+        props[:class] += '.button_link' if as_button
 
         h(Link, props)
       end

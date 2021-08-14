@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'lib/color'
 require 'lib/hex'
 require 'lib/settings'
 require 'view/game/part/base'
@@ -9,7 +8,6 @@ module View
   module Game
     module Part
       class Borders < Base
-        include Lib::Color
         include Lib::Settings
 
         needs :tile
@@ -56,6 +54,8 @@ module View
         }.freeze
 
         def color(border)
+          return setting_for(border.color) if border.color
+
           color =
             case border.type
             when :mountain
@@ -67,6 +67,10 @@ module View
             end
 
           setting_for(color)
+        end
+
+        def border_width(border)
+          border.type == :impassable ? '10' : '8'
         end
 
         def render_cost(border)
@@ -109,7 +113,7 @@ module View
             children << h(:line, attrs: {
                             **EDGES[border.edge],
                             stroke: color(border),
-                            'stroke-width': '8',
+                            'stroke-width': border_width(border),
                           })
             children << render_cost(border) if border.cost
           end

@@ -42,8 +42,9 @@ module Engine
       @depot_trains = nil
     end
 
-    def min_price(corporation)
-      available(corporation).map(&:min_price).min
+    # if set, ability must be a :train_discount ability
+    def min_price(corporation, ability: nil)
+      available(corporation).map { |train| train.min_price(ability: ability) }.min
     end
 
     def min_depot_train
@@ -74,6 +75,13 @@ module Engine
       @depot_trains = nil
     end
 
+    def forget_train(train)
+      @trains.delete(train)
+      @upcoming.delete(train)
+      @discarded.delete(train)
+      @depot_trains = nil
+    end
+
     def add_train(train)
       train.owner = self
       @trains << train
@@ -87,30 +95,6 @@ module Engine
         @upcoming.first,
         *@upcoming.select { |t| @game.phase.available?(t.available_on) },
       ].compact.uniq(&:name) + @discarded.uniq(&:name)
-    end
-
-    def discountable_trains_for(corporation)
-      discountable_trains = depot_trains.select(&:discount)
-
-      corporation.trains.flat_map do |train|
-        discountable_trains.flat_map do |discount_train|
-          discounted_price = discount_train.price(train)
-          next if discount_train.price == discounted_price
-
-          name = discount_train.name
-          discount_info = [[train, discount_train, name, discounted_price]]
-
-          # Add variants if any - they have same discount as base version
-          discount_train.variants.each do |_, v|
-            next if v[:name] == name
-
-            price = v[:price] - (discount_train.price - discounted_price)
-            discount_info << [train, discount_train, v[:name], price]
-          end
-
-          discount_info
-        end.compact
-      end
     end
 
     def available(corporation)
@@ -137,6 +121,10 @@ module Engine
 
     def empty?
       depot_trains.empty?
+    end
+
+    def player
+      nil
     end
   end
 end

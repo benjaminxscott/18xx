@@ -60,13 +60,13 @@ module Engine
         true
       end
 
-      private
+      protected
 
       def finish_round
-        @game.corporations.select(&:floated?).sort.each do |corp|
+        corporations_to_move_price.sort.each do |corp|
           prev = corp.share_price.price
 
-          sold_out_stock_movement(corp) if sold_out?(corp) && @game.class::SOLD_OUT_INCREASE
+          sold_out_stock_movement(corp) if sold_out?(corp) && @game.sold_out_increase?(corp)
           pool_share_drop = @game.class::POOL_SHARE_DROP
           price_drops =
             if (pool_share_drop == :none) || (shares_in_pool = corp.num_market_shares).zero?
@@ -80,6 +80,10 @@ module Engine
 
           @game.log_share_price(corp, prev)
         end
+      end
+
+      def corporations_to_move_price
+        @game.corporations.select(&:floated?)
       end
 
       def sold_out_stock_movement(corp)

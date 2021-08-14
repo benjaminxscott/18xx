@@ -23,11 +23,10 @@ module Engine
       def process_buy_shares(action)
         company = action.entity
         bundle = action.bundle
-        unless can_exchange?(company, bundle)
-          raise GameError, "Cannot exchange #{action.entity.id} for #{bundle.corporation.id}"
-        end
+        raise GameError, "Cannot exchange #{action.entity.id} for #{bundle.corporation.id}" unless can_exchange?(company, bundle)
 
         buy_shares(company.owner, bundle, exchange: company)
+        @round.players_history[company.owner][bundle.corporation] << action if @round.respond_to?(:players_history)
         company.close!
       end
 
@@ -42,16 +41,13 @@ module Engine
         owner = entity.owner
         return can_gain?(owner, bundle, exchange: true) if bundle
 
-        corporations =
-          ability.corporation == 'any' ? @game.corporations : [@game.corporation_by_id(ability.corporation)]
-
         shares = []
-        corporations.each do |corporation|
+        @game.exchange_corporations(ability).each do |corporation|
           shares << corporation.available_share if ability.from.include?(:ipo)
           shares << @game.share_pool.shares_by_corporation[corporation]&.first if ability.from.include?(:market)
         end
 
-        shares.any? { |s| can_gain?(entity.owner, s&.to_bundle, exchange: true) }
+        shares.compact.any? { |s| can_gain?(entity.owner, s&.to_bundle, exchange: true) }
       end
     end
   end

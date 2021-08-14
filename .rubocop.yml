@@ -1,5 +1,11 @@
+require: rubocop-performance
+
 AllCops:
-  TargetRubyVersion: 3.0
+  TargetRubyVersion: 3.0.1
+  NewCops: enable
+
+Layout/EndOfLine:
+  EnforcedStyle: lf
 
 Layout/FirstArgumentIndentation:
   Enabled: false
@@ -7,23 +13,16 @@ Layout/FirstArgumentIndentation:
 Layout/FirstArrayElementIndentation:
   Enabled: false
 
-Layout/FirstHashElementIndentation:
-  Enabled: true
-
 Layout/FirstHashElementLineBreak:
   Enabled: true
 
 Layout/LineLength:
-  Max: 120
+  Max: 130
   Exclude:
     - 'assets/js/view/svg_tokens/**/*'
 
 Layout/MultilineMethodCallIndentation:
   Enabled: false
-
-Layout/MultilineHashBraceLayout:
-  Enabled: true
-  EnforcedStyle: new_line
 
 Layout/MultilineHashKeyLineBreaks:
   Enabled: true
@@ -34,55 +33,26 @@ Layout/MultilineOperationIndentation:
 Layout/SpaceBeforeBrackets:
   Enabled: false
 
-Lint/AmbiguousAssignment:
-  Enabled: true
-
-Lint/ConstantDefinitionInBlock: # TODO enable & check offenses
-  Enabled: false
-
-Lint/DuplicateBranch: # TODO enable & check offenses
-  Enabled: false
-
-Lint/DuplicateRegexpCharacterClassElement:
-  Enabled: true
-
-Lint/EmptyBlock:
-  Enabled: true
-
-Lint/EmptyClass:
-  Enabled: true
-
-Lint/FloatComparison: # TODO enable & check offenses
-  Enabled: false
-
 Lint/MissingSuper: # TODO enable & check offenses
   Enabled: false
-
-Lint/NoReturnInBeginEndBlocks:
-  Enabled: true
-
-Lint/RedundantSafeNavigation: # TODO enable & check offenses
-  Enabled: false
-
-Lint/ToEnumArguments:
-  Enabled: true
 
 Lint/UnexpectedBlockArity:
   Enabled: false
 
-Lint/UnmodifiedReduceAccumulator:
+Lint/UnusedMethodArgument:
   Enabled: true
+  AllowUnusedKeywordArguments: true
 
 Lint/UselessMethodDefinition: # TODO enable & check offenses
-  Enabled: false
-
-Lint/UselessTimes: # TODO enable & check offenses
   Enabled: false
 
 Metrics/AbcSize:
   Enabled: false
 
 Metrics/BlockLength:
+  Enabled: false
+
+Metrics/BlockNesting:
   Enabled: false
 
 Metrics/ClassLength:
@@ -113,10 +83,36 @@ Naming/VariableNumber: # TODO enable & check offenses, default or snake_case?
 Naming/MethodParameterName:
   Enabled: false
 
-Style/ArgumentsForwarding:
+Performance/AncestorsInclude:
+  Enabled: false
+
+# https://github.com/rubocop/rubocop-performance/issues/99#issuecomment-582560228
+Performance/Caller:
+  Enabled: false
+
+# code readibility trumps performance improvement
+Performance/Casecmp:
+  Enabled: false
+
+# would add many lines, but does not improve performance significantly
+Performance/ChainArrayAllocation:
+  Enabled: false
+
+# code readibility trumps performance improvement
+Performance/CollectionLiteralInLoop:
+  Enabled: false
+
+
+Performance/MapCompact:
+  Enabled: false
+
+# works fine for numbers, might be problematic for strings
+# http://www.albertoalmagro.com/ruby-rangeinclude-vs-rangecover/
+Performance/RangeInclude:
   Enabled: true
 
-Style/CaseLikeIf: # TODO enable & check offenses
+# not safe, performance improvement negligible
+Performance/RedundantEqualityComparisonBlock:
   Enabled: false
 
 Style/ClassVars:
@@ -125,77 +121,40 @@ Style/ClassVars:
 Style/CollectionCompact:
   Enabled: false
 
-Style/CombinableLoops: # TODO enable & check offenses
+# all (6) duplicated loops are used on purpose and for good reason
+Style/CombinableLoops:
   Enabled: false
 
 Style/CommandLiteral:
-  Enabled: false
+  Enabled: true
+  EnforcedStyle: mixed
 
 Style/Documentation:
   Enabled: false
 
-Style/DocumentDynamicEvalDefinition:
-  Enabled: true
-
-Style/EmptyCaseCondition:
+# unsafe, problems with 1860
+Style/HashEachMethods:
   Enabled: false
 
-Style/ExplicitBlockArgument: # TODO enable & check offenses, EnforcedStyle?
-  Enabled: false
-  # EnforcedStyle: no_braces
-
-Style/HashAsLastArrayItem: # TODO enable & check offenses
-  Enabled: false
-
-Style/HashEachMethods: # TODO enable & check offenses
-  Enabled: false
-
-Style/HashExcept:
-  Enabled: true
-
-Style/HashLikeCase: # TODO enable & check offenses
-  Enabled: false
-
-Style/HashTransformKeys: # TODO enable & check offenses
-  Enabled: false
-
-Style/HashTransformValues: # TODO enable & check offenses
-  Enabled: false
-
-Style/MultipleComparison:
-  Enabled: false
-
-Style/MultilineIfModifier:
+# code readibility: case trumps hash-lookup
+Style/HashLikeCase:
   Enabled: false
 
 Style/NegatedIfElseCondition:
   Enabled: false
 
-Style/NilLambda:
-  Enabled: true
-
 Style/OptionalBooleanParameter: # TODO enable & check offenses
   Enabled: false
 
-Style/RedundantArgument:
+# conflicts with Style/MutableConstant
+Style/RedundantFreeze:
   Enabled: false
 
-Style/RedundantFreeze: # conflicts with Style/MutableConstant
-  Enabled: false
-
-Style/RedundantRegexpEscape: # TODO enable & check offenses
-  Enabled: false
-
-Style/SlicingWithRange: # TODO enable & check offenses
-  Enabled: false
-
-Style/SoleNestedConditional: # TODO enable & check offenses
+# enabling would break compiling deps!
+Style/SlicingWithRange:
   Enabled: false
 
 Style/StringConcatenation:
-  Enabled: false
-
-Style/SwapValues:
   Enabled: false
 
 Style/TrailingCommaInArguments:

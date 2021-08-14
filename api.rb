@@ -8,10 +8,7 @@ require 'roda'
 require 'snabberb'
 
 require_relative 'models'
-require_relative 'lib/assets'
-require_relative 'lib/bus'
-require_relative 'lib/mail'
-
+require_rel './lib'
 require_rel './models'
 
 class Api < Roda
@@ -27,9 +24,10 @@ class Api < Roda
 
   plugin :content_security_policy do |csp|
     csp.default_src :self
-    csp.style_src :self
+    csp.style_src :self, :unsafe_inline, 'fonts.googleapis.com', 'cdn.jsdelivr.net'
+    csp.font_src :self, 'fonts.gstatic.com'
     csp.form_action :self
-    csp.script_src :self
+    csp.script_src :self, :unsafe_inline, 'cdn.jsdelivr.net'
     csp.connect_src :self
     csp.base_uri :none
     csp.frame_ancestors :none
@@ -47,6 +45,7 @@ class Api < Roda
 
   error do |e|
     LOGGER.error e.backtrace
+    LOGGER.error e.message
     { error: e.message }
   end
 
@@ -57,19 +56,24 @@ class Api < Roda
   plugin :json_parser
   plugin :halt
   plugin :cookies
+  plugin :new_relic if PRODUCTION
 
   ASSETS = Assets.new(precompiled: PRODUCTION)
 
-  Bus.configure(DB)
+  Bus.configure
 
   use MessageBus::Rack::Middleware
   use Rack::Deflater unless PRODUCTION
 
   STANDARD_ROUTES = %w[
-    / about hotseat login map market new_game profile signup tiles tutorial forgot reset fixture
+    / about hotseat login new_game profile signup tutorial forgot reset
   ].freeze
 
-  Dir['./routes/*'].sort.each { |file| require file }
+  ROUTES_WITH_GAME_TITLES = %w[
+     map market fixture
+  ].freeze
+
+  Dir['./routes/*'].each { |file| require file }
 
   hash_routes do
     on 'api' do |hr|
@@ -102,19 +106,33 @@ class Api < Roda
       render_with_games
     end
 
+    r.on ROUTES_WITH_GAME_TITLES do
+      render(titles: request.path.split('/')[2].split('+'))
+    end
+
+    r.on 'tiles' do
+      parts = request.path.split('/')
+      titles = parts.size == 4 ? parts[2].split(/[+ ]/) : []
+      render(titles: titles)
+    end
+
     r.on 'game', Integer do |id|
       halt(404, 'Game not found') unless (game = Game[id])
 
       pin = game.settings['pin']
-      render(pin: pin, game_data: pin ? game.to_h(include_actions: true) : game.to_h)
+      render(titles: [game.title], pin: pin, game_data: pin ? game.to_h(include_actions: true) : game.to_h)
     end
   end
 
   def render_with_games
-    render(pin: request.params['pin'], games: Game.home_games(user, **request.params).map(&:to_h))
+    render(
+      title: request.params['title'],
+      pin: request.params['pin'],
+      games: Game.home_games(user, **request.params).map(&:to_h),
+    )
   end
 
-  def render(**needs)
+  def render(titles: nil, **needs)
     needs[:user] = user&.to_h(for_user: true)
 
     return render_pin(**needs) if needs[:pin]
@@ -123,12 +141,13 @@ class Api < Roda
       'Index',
       'App',
       'app',
-      javascript_include_tags: ASSETS.js_tags,
+      javascript_include_tags: ASSETS.js_tags(titles || []),
       app_route: request.path,
+      production: PRODUCTION,
       **needs,
     )
 
-    '<!DOCTYPE html>' + ASSETS.context.eval(script, warmup: request.path.split('/')[1].to_s)
+    '<!DOCTYPE html>' + ASSETS.context.eval(script)
   end
 
   def render_pin(**needs)
@@ -137,7 +156,7 @@ class Api < Roda
     static(
       desc: "Pin #{pin}",
       js_tags: "<script type='text/javascript' src='#{Assets::PIN_DIR}#{pin}.js'></script>",
-      attach_func: "Opal.$$.App.$attach('app', #{Snabberb.wrap(app_route: request.path, **needs)})",
+      attach_func: "Opal.App.$attach('app', #{Snabberb.wrap(app_route: request.path, **needs)})",
     )
   end
 
@@ -193,7 +212,7 @@ class Api < Roda
   def publish(channel, limit = nil, **data)
     MessageBus.publish(
       channel,
-      data.merge('_client_id': request.params['_client_id']),
+      data.merge(_client_id: request.params['_client_id']),
       max_backlog_size: limit,
     )
     {}
@@ -201,14 +220,10 @@ class Api < Roda
 
   MessageBus.user_id_lookup do |env|
     next unless (token = Rack::Request.new(env).cookies['auth_token'])
+    next unless (id = Session.first(token: token)&.user_id)
 
-    ip =
-      if (addr = env['HTTP_X_FORWARDED_FOR'])
-        addr.split(',')[-1].strip
-      else
-        env['REMOTE_ADDR']
-      end
-    Session.where(token: token).update(updated_at: Sequel::CURRENT_TIMESTAMP, ip: ip)
+    Bus[Bus::USER_TS % id] = Time.now.to_i
+
     nil
   end
 end

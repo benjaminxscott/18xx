@@ -38,7 +38,6 @@ module Engine
         if auctioning
           add_bid(action)
         else
-          @round.last_to_act = action.entity
           placement_bid(action)
           @round.next_entity_index!
         end
@@ -141,10 +140,11 @@ module Engine
           @cheapest.discount += 5
           new_value = @cheapest.min_bid
           @log << "#{@cheapest.name} minimum bid decreases from "\
-            "#{@game.format_currency(value)} to #{@game.format_currency(new_value)}"
+                  "#{@game.format_currency(value)} to #{@game.format_currency(new_value)}"
 
           if new_value <= 0
-            # It's now free so the current player is forced to take it.
+            # It's now free so the next player is forced to take it.
+            @round.next_entity_index!
             buy_company(current_entity, @cheapest, 0)
             resolve_bids
           end
@@ -158,6 +158,7 @@ module Engine
 
       def placement_bid(bid)
         if may_purchase?(bid.company)
+          @round.last_to_act = bid.entity
           @auction_triggerer = bid.entity
           accept_bid(bid)
           resolve_bids
@@ -183,21 +184,13 @@ module Engine
           "#{player.name} buys #{company.name} for #{@game.format_currency(price)}"
         when 1
           "#{player.name} wins the auction for #{company.name} "\
-            "with the only bid of #{@game.format_currency(price)}"
+          "with the only bid of #{@game.format_currency(price)}"
         else
           "#{player.name} wins the auction for #{company.name} "\
-            "with a bid of #{@game.format_currency(price)}"
+          "with a bid of #{@game.format_currency(price)}"
         end
 
-        @game.abilities(company, :shares) do |ability|
-          ability.shares.each do |share|
-            if share.president
-              @round.companies_pending_par << company
-            else
-              @game.share_pool.buy_shares(player, share, exchange: :free)
-            end
-          end
-        end
+        @game.after_buy_company(player, company, price)
       end
 
       private

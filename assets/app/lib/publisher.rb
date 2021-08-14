@@ -4,12 +4,14 @@ module Lib
   module Publisher
     def self.link_list(component: nil, publishers: [])
       # show publishers for all playable games on the welcome page
-      publishers = Engine::VISIBLE_GAMES
-        .flat_map { |g| g::GAME_PUBLISHER }
-        .reject { |p| p == :self_published }
-        .compact
-        .uniq
-        .sort if publishers.empty?
+      if publishers.empty?
+        publishers = Engine::VISIBLE_GAMES
+          .flat_map { |g| g::GAME_PUBLISHER }
+          .reject { |p| p == :self_published }
+          .compact
+          .uniq
+          .sort
+      end
 
       publishers = publishers.map do |p|
         publisher = Engine::Publisher::INFO[p]
@@ -23,7 +25,7 @@ module Lib
 
       if publishers.size > 1
         if publishers.size > 2
-          commas = (publishers.size - 1).times.map { ', ' }
+          commas = Array.new(publishers.size - 1) { ', ' }
           publishers = publishers.zip(commas).flatten.compact
         end
         publishers.insert(-2, ' and ')

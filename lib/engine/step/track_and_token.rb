@@ -46,7 +46,8 @@ module Engine
 
         @game.abilities(entity, :tile_lay) do |ability|
           ability.hexes.each do |hex_id|
-            free = true if ability.free && @game.hex_by_id(hex_id).tile.preprinted
+            free = true if (ability.free || ability.discount >= @game.class::TILE_COST) &&
+                           @game.hex_by_id(hex_id).tile.preprinted
           end
         end
 
@@ -64,6 +65,12 @@ module Engine
       def process_lay_tile(action)
         lay_tile_action(action)
         pass! if !can_lay_tile?(action.entity) && @tokened
+      end
+
+      def available_hex(entity, hex)
+        return super if can_lay_tile?(entity)
+
+        @game.graph.reachable_hexes(entity)[hex]
       end
     end
   end

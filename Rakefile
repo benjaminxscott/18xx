@@ -6,18 +6,21 @@ unless ENV['RACK_ENV'] == 'production'
 
   # Specs
   RSpec::Core::RakeTask.new(:spec)
-  RuboCop::RakeTask.new
+  RuboCop::RakeTask.new do |task|
+    task.requires << 'rubocop-performance'
+  end
 
   task default: %i[spec rubocop]
 end
 
 # Migrate
-migrate = lambda do |env, version|
+migrate = lambda do |env, version, truncate = false|
   ENV['RACK_ENV'] = env
   require_relative 'db'
   require 'logger'
   Sequel.extension :migration
   DB.loggers << Logger.new($stdout) if DB.loggers.empty?
+  DB[:actions].truncate if truncate && DB.tables.include?(:actions)
   Sequel::Migrator.apply(DB, 'migrate', version)
 end
 
@@ -26,16 +29,14 @@ task :dev_up do
   migrate.call('development', nil)
 end
 
-desc 'Migrate development database to all the way down'
-task :dev_down do
-  DB[:actions].truncate if DB.tables.include?(:actions)
-  migrate.call('development', 0)
+desc 'Migrate development database to version x (0 if no arg given)'
+task :dev_down, [:version] do |_t, args|
+  migrate.call('development', args[:version].to_i, true)
 end
 
-desc 'Migrate development database all the way down and then back up'
-task :dev_bounce do
-  migrate.call('development', 0)
-  DB[:actions].truncate if DB.tables.include?(:actions)
+desc 'Migrate development database down to version x (0 if no arg given) and then back up'
+task :dev_bounce, [:version] do |_t, args|
+  migrate.call('development', args[:version].to_i, true)
   Sequel::Migrator.apply(DB, 'migrate')
 end
 
@@ -92,7 +93,8 @@ end
 desc 'Precompile assets for production'
 task :precompile do
   require_relative 'lib/assets'
-  bundle = Assets.new(cache: false, make_map: false, compress: true, gzip: true).combine
+  assets = Assets.new(cache: false, compress: true, gzip: true)
+  assets.combine
 
   # Copy to the pin directory
   git_rev = `git rev-parse --short HEAD`.strip
@@ -102,7 +104,9 @@ task :precompile do
     url: "https://github.com/tobymao/18xx/commit/#{git_rev}",
   ))
   FileUtils.mkdir_p(pin_dir)
-  FileUtils.cp("#{bundle}.gz", "#{pin_dir}/#{git_rev}.js.gz")
+  assets.pin("#{pin_dir}#{git_rev}.js.gz")
+
+  assets.clean_intermediate_output_files
 end
 
 desc 'Profile loading data'
@@ -111,7 +115,7 @@ task 'stackprof', [:json] do |_task, args|
   require_relative 'lib/engine'
   starttime = Time.new
   StackProf.run(mode: :cpu, out: 'stackprof.dump', raw: true, interval: 10) do
-    100.times do
+    10.times do
       Engine::Game.load(args[:json])
     end
   end

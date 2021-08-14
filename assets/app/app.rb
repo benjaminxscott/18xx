@@ -4,10 +4,11 @@ require 'index'
 require 'game_manager'
 require 'user_manager'
 require 'lib/connection'
+require 'lib/settings'
 require 'lib/storage'
 require 'view/about'
 require 'view/create_game'
-require 'view/invite_game'
+require 'view/game_card_page'
 require 'view/home'
 require 'view/confirm'
 require 'view/flash'
@@ -23,16 +24,20 @@ require 'view/reset'
 class App < Snabberb::Component
   include GameManager
   include UserManager
+  include Lib::Settings
+
   needs :pin, default: nil
+  needs :title, default: nil
+  needs :production, default: nil
 
   def render
     props = {
       props: { id: 'app' },
       style: {
-        backgroundColor: @user&.dig(:settings, :bg) || 'inherit',
-        color: @user&.dig(:settings, :font) || 'currentColor',
+        backgroundColor: color_for(:bg) || 'inherit',
+        color: color_for(:font) || 'currentColor',
         minHeight: '98vh',
-        padding: '0.75vmin 2vmin 2vmin 2vmin',
+        padding: '0 2vmin 2vmin 2vmin',
         transition: 'background-color 1s ease',
       },
     }
@@ -55,7 +60,7 @@ class App < Snabberb::Component
     page =
       case @app_route
       when /new_game/
-        h(View::CreateGame)
+        h(View::CreateGame, title: @title, production: @production)
       when /[^?](game|hotseat|tutorial|fixture)/
         render_game
       when /signup/
@@ -86,7 +91,7 @@ class App < Snabberb::Component
   end
 
   def render_game
-    match = @app_route.match(%r{(hotseat|game|fixture)\/((18.*\/)?(hs.*_)?\d+)})
+    match = @app_route.match(%r{(hotseat|game|fixture)/((18.*/)?([^?#]*))})
 
     if !@game_data&.any? # this is a hotseat game
       if @app_route.include?('tutorial')
@@ -96,10 +101,9 @@ class App < Snabberb::Component
       else
         enter_game(id: match[2], mode: match[1] == 'game' ? :muti : :hotseat, pin: @pin)
       end
-    elsif @game_data['status'] == 'new'
-      return h(View::InviteGame, user: @user, game: @game_data)
+    elsif %w[new archived].include?(@game_data['status'])
+      return h(View::GameCardPage, user: @user, game: @game_data)
     elsif !@game_data['loaded'] && !@game_data['loading']
-      enter_game(id: match[2], mode: match[1] == 'game' ? :muti : :hotseat, pin: @pin)
       enter_game(@game_data)
     end
 

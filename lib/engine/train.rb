@@ -7,8 +7,9 @@ module Engine
   class Train
     include Ownable
 
-    attr_accessor :obsolete, :operated, :events, :variants, :obsolete_on, :rusted, :rusts_on, :index
-    attr_reader :available_on, :name, :distance, :discount, :multiplier, :sym, :variant
+    attr_accessor :obsolete, :operated, :events, :variants, :obsolete_on, :rusted, :rusts_on, :index, :name,
+                  :distance, :reserved
+    attr_reader :available_on, :discount, :multiplier, :sym, :variant
     attr_writer :buyable
 
     def initialize(name:, distance:, price:, index: 0, **opts)
@@ -22,11 +23,13 @@ module Engine
       @available_on = opts[:available_on]
       @discount = opts[:discount]
       @multiplier = opts[:multiplier]
+      @no_local = opts[:no_local]
       @buyable = true
       @rusted = false
       @obsolete = false
       @operated = false
       @events = (opts[:events] || []).select { |e| @index == (e[:when] || 0) }
+      @reserved = opts[:reserved] || false
       init_variants(opts[:variants])
     end
 
@@ -52,6 +55,9 @@ module Engine
 
       @variant = @variants[new_variant]
       @variant.each { |k, v| instance_variable_set("@#{k}", v) }
+
+      # Remove the @local variable, this to get the local? method evaluate the new variant
+      remove_instance_variable(:@local) if defined?(@local)
     end
 
     def names_to_prices
@@ -66,8 +72,11 @@ module Engine
       "#{@sym}-#{@index}"
     end
 
-    def min_price
-      from_depot? ? @price : 1
+    # if set ability must be a :train_discount ability
+    def min_price(ability: nil)
+      return 1 unless from_depot?
+
+      ability&.discounted_price(self, @price) || @price
     end
 
     def from_depot?
@@ -76,6 +85,18 @@ module Engine
 
     def buyable
       @buyable && !@obsolete
+    end
+
+    def local?
+      return false if @no_local
+      return @local if defined?(@local)
+
+      @local = if @distance.is_a?(Numeric)
+                 @distance == 1
+               else
+                 distance_city = @distance.find { |n| n['nodes'].include?('city') }
+                 distance_city['visit'] == 1 if distance_city
+               end
     end
 
     def inspect

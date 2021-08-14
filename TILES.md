@@ -5,13 +5,14 @@ Some app routes that may be of interest to developers:
 * `/map/<game_title>` - renders the given game's map
 * `/tiles/all` - renders all of the track tiles (and generic map hex "tiles")
   defined in `lib/engine/tile.rb`
-* `/tiles/<game_title>` - renders all of the track tiles (and map hex "tiles")
-  for the given game. Multiple game titles can be given, separated by `+`.
 * `/tiles/<tile_name>` - renders a single tile at large scale (tile must be
   defined in `lib/engine/tile.rb`)
 * `/tiles/<game_title>/<hex_coord_or_tile_name>` - renders a single hex or tile
   the given game at large scale. Multiple hex coords or tile names can be given,
   separated by `+`.
+* `/tiles/<game_titles>/all` - renders all of the track tiles (and map hex
+  "tiles") for the given games (multiple game titles can be given, separated by
+  `+`). The game titles are fuzzy matched.
 
 Optional URL params for above routes:
 
@@ -66,10 +67,11 @@ game config/code:
       integer to refer by index to a city/town/offboard/junction defined earlier
       on the tile
     - **terminal** - `1` - indicates that path is part of a non-passthru path, typically for off-board cities. Tapered track will be drawn.
+    - **ignore** - `1` - indicates that path should be ignored when node walk is trying to map available paths and hexes.
     - **a\_lane** - integer.integer - first integer specifies the lane width for the **a** path endpoint, the second integer specifies the lane index, or position within the lane. 0 is the most clockwise position.
     - **b\_lane** - integer.integer - first integer specifies the lane width for the **b** path endpoint, the second integer specifies the lane index, or position within the lane. 0 is the most clockwise position.
     - **lanes** - integer - number of parallel paths. Creates multiple copies of this path with **a\_lane** and **b\_lane** for each path generated automatically and set rationally.
-    - **track** - `broad/narrow/line/dashed`; this option is not yet implemented, so track is always broad
+    - **track** - `broad/narrow/dual` - used for display and connectivity. Defaults to `broad`.
 - **label** - large letter(s) on tile (e.g., "Chi", "OO", or "Z")
 - **upgrade**
     - **cost** - *required* - integer
@@ -91,6 +93,7 @@ game config/code:
       but can only be laid by special ability, such as a private company's ability.
 - **frame**
     - **color** - *required* - the color of the frame
+    - **color2** - A second color to display on the frame
 
 #### Town/City/Offboard sub parts
 
@@ -164,7 +167,7 @@ connected in an unusual way (for instance going from a double-track edge to a si
 
 ![18Chesapeake K3](/public/images/tile_18Chesapeake_K3.png?raw=true "18Chesapeake K3")
 
-* 18MEX - Upgrade for Mexico City 
+* 18MEX - Upgrade for Mexico City
 
 `city=revenue:60,slots:3,loc:center;town=revenue:10,loc:2;path=a:0,b:_0;path=a:1,b:_0;path=a:3,b:_0;path=a:2,b:_1;path=a:5,b:_0,lanes:2;path=a:_1,b:_0;label=MC`
 

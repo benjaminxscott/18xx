@@ -1,11 +1,13 @@
 # frozen_string_literal: true
 
+require 'lib/settings'
 require 'view/game/actionable'
 
 module View
   module Game
     class Dividend < Snabberb::Component
       include Actionable
+      include Lib::Settings
 
       needs :routes, store: true, default: []
 
@@ -19,7 +21,7 @@ module View
 
         store(:routes, @step.routes, skip: true)
 
-        payout_options = @step.dividend_types.map do |type|
+        payout_options = options.keys.map do |type|
           option = options[type]
           text =
             case type
@@ -30,7 +32,7 @@ module View
             when :half
               'Half Pay'
             else
-              type
+              @step.respond_to?(:dividend_name) ? @step.dividend_name(type) : type
             end
 
           corp_income = option[:corporation] + option[:divs_to_corporation]
@@ -44,14 +46,14 @@ module View
               moves.map do |times, dir|
                 times.times { new_share = @game.stock_market.find_relative_share_price(new_share, dir) }
 
-                "#{times} #{dir}"
+                @step.respond_to?(:movement_str) ? @step.movement_str(times, dir) : "#{times} #{dir}"
               end.join(', ')
             else
               'None'
             end
 
-          if entity.loans.any? && !@game.can_pay_interest?(entity, corp_income)
-            text += ' (Liquidate)'
+          if entity.loans.any? && !@game.can_pay_interest?(entity, corp_income) && @game.cannot_pay_interest_str
+            text += " #{@game.cannot_pay_interest_str}"
           elsif new_share.acquisition?
             text += ' (Acquisition)'
           end
@@ -62,11 +64,10 @@ module View
           end
           button = h('td.no_padding', [h(:button, { style: { margin: '0.2rem 0' }, on: { click: click } }, text)])
 
-          props = { style: { paddingRight: '1rem' } }
           h(:tr, [
             button,
-            h('td.right', props, [@game.format_currency(corp_income)]),
-            h('td.right', props, [@game.format_currency(option[:per_share])]),
+            h('td.padded_number', [@game.format_currency(corp_income)]),
+            h('td.padded_number', [@game.format_currency(option[:per_share])]),
             h(:td, [direction]),
           ])
         end
@@ -98,11 +99,13 @@ module View
             ' to cover the remaining unpaid interest'
         end
         penalties = h(:span)
-        penalties = h(:div, [
-          h(:h3, 'Penalties'),
-          h(:p, corporation_penalty),
-          h(:p, player_penalty),
-        ]) if corporation_interest_penalty?(entity) || player_interest_penalty?(entity)
+        if corporation_interest_penalty?(entity) || player_interest_penalty?(entity)
+          penalties = h(:div, [
+            h(:h3, 'Penalties'),
+            h(:p, corporation_penalty),
+            h(:p, player_penalty),
+          ])
+        end
 
         h(:div, div_props, [
           penalties,
@@ -133,33 +136,60 @@ module View
       end
 
       def render_variable(entity)
-        max = (@step.variable_max(entity) / entity.total_shares).to_i
+        max = (@step.variable_max(entity) / @step.variable_share_multiplier(entity)).to_i
 
         input = h(:input,
-                  style: {
-                    margin: '1rem 0px',
-                    marginRight: '1rem',
-                  },
                   props: {
                     value: max,
                     min: 0,
                     max: max,
                     type: 'number',
                     size: max.to_s.size,
+                    step: @step.variable_input_step,
                   })
 
         h(:div,
           [
-            "Select per share amount to distribute to shareholders, between #{@game.format_currency(0)}",
-            " and #{@game.format_currency(max)}",
-            input,
-            h(:button, { on: { click: -> { create_dividend(input) } } }, 'Pay Dividend'),
+            h(:h3, { style: { margin: '0.5rem 0 0.2rem 0' } }, 'Pay Dividends'),
+            @step.help_str(max),
+            h(:div, [
+              input,
+              h(:button, { on: { click: -> { create_dividend(input) } } }, 'Pay Dividend'),
+            ]),
+            dividend_chart,
         ])
       end
 
       def create_dividend(input)
-        amount = input.JS['elm'].JS['value'].to_i * @step.current_entity.total_shares
+        amount = input.JS['elm'].JS['value'].to_i * @step.variable_share_multiplier(@step.current_entity)
         process_action(Engine::Action::Dividend.new(@step.current_entity, kind: 'variable', amount: amount))
+      end
+
+      def dividend_chart
+        header, *chart = @step.chart
+
+        rows = chart.map do |r|
+          h(:tr, [
+            h('td.padded_number', r[0]),
+            h(:td, r[1]),
+          ])
+        end
+
+        table_props = {
+          style: {
+            margin: '0.5rem 0 0.5rem 0',
+          },
+        }
+
+        h(:table, table_props, [
+          h(:thead, [
+            h(:tr, [
+              h(:th, header[0]),
+              h(:th, header[1]),
+            ]),
+          ]),
+          h(:tbody, rows),
+        ])
       end
     end
   end

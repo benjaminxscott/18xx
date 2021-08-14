@@ -1,14 +1,13 @@
 # frozen_string_literal: true
 
-require 'lib/color'
 require 'lib/settings'
+require 'engine/auto_router'
 require 'view/game/actionable'
 
 module View
   module Game
     class RouteSelector < Snabberb::Component
       include Actionable
-      include Lib::Color
       include Lib::Settings
 
       needs :last_entity, store: true, default: nil
@@ -23,7 +22,7 @@ module View
       # Due to the way this and the map hook up routes needs to have
       # an entry, but that route is not valid at zero length
       def active_routes
-        @routes.select { |r| r.connections.any? }
+        @routes.select { |r| r.chains.any? }
       end
 
       def generate_last_routes!
@@ -34,7 +33,7 @@ module View
         return [] if @abilities&.any?
 
         halts = operating[operating.keys.max]&.halts
-        last_run.map do |train, connections|
+        last_run.map do |train, connection_hexes|
           next unless trains.include?(train)
 
           # A future enhancement to this could be to find trains and move the routes over
@@ -42,7 +41,7 @@ module View
             @game,
             @game.phase,
             train,
-            connection_hexes: connections,
+            connection_hexes: connection_hexes,
             routes: @routes,
             halts: halts[train],
           )
@@ -50,6 +49,7 @@ module View
       end
 
       def render
+        step = @game.active_step
         current_entity = @game.round.current_entity
         if @selected_company&.owner == current_entity
           ability = @game.abilities(@selected_company, :hex_bonus, time: 'route')
@@ -75,7 +75,7 @@ module View
         trains = @game.route_trains(current_entity)
 
         train_help =
-          if (helps = @game.train_help(trains)).any?
+          if (helps = @game.train_help(current_entity, trains, @routes)).any?
             h('ul',
               { style: { 'padding-left': '20px' } },
               helps.map { |help| h('li', [h('p.small_font', help)]) })
@@ -94,6 +94,8 @@ module View
           store(:routes, @routes, skip: true)
           store(:selected_route, route, skip: true)
         end
+
+        @routes.each(&:clear_cache!)
 
         render_halts = false
         trains = trains.flat_map do |train|
@@ -123,7 +125,7 @@ module View
           children = []
           if route
             revenue, invalid = begin
-              [@game.format_currency(route.revenue), nil]
+              [@game.format_revenue_currency(route.revenue), nil]
             rescue Engine::GameError => e
               ['N/A', e.to_s]
             end
@@ -134,13 +136,13 @@ module View
 
             td_props = { style: { paddingRight: '0.8rem' } }
 
-            children << h('td.right', td_props, route.distance)
+            children << h('td.right.middle', td_props, route.distance_str)
             if route.halts
               render_halts = true
-              children << h('td.right', td_props, halt_actions(route, revenue,
-                                                               @game.format_currency(route.subsidy)))
+              children << h('td.right.middle', td_props,
+                            halt_actions(route, revenue, @game.format_currency(route.subsidy)))
             else
-              children << h('td.right', td_props, revenue)
+              children << h('td.right.middle', td_props, revenue)
             end
             children << h(:td, route.revenue_str)
           elsif !selected
@@ -156,8 +158,9 @@ module View
               padding: '0 0 0.4rem 0.4rem',
             },
           }
+          train_name = step.respond_to?(:train_name) ? step.train_name(current_entity, train) : train.name
           [
-            h(:tr, [h(:td, [h(:div, { style: style, on: { click: onclick } }, train.name)]), *children]),
+            h(:tr, [h('td.middle', [h(:div, { style: style, on: { click: onclick } }, train_name)]), *children]),
             invalid ? h(:tr, [h(:td, invalid_props, invalid)]) : '',
           ]
         end
@@ -184,7 +187,7 @@ module View
         instructions += ' Click button under Revenue to pick number of halts.' if render_halts
 
         h(:div, div_props, [
-          h(:h3, { style: { margin: '0.5rem 0 0.2rem' } }, 'Select Routes'),
+          h(:h3, 'Select Routes'),
           h('div.small_font', description),
           h('div.small_font', instructions),
           train_help,
@@ -192,7 +195,7 @@ module View
             h(:thead, [
               h(:tr, [
                 h(:th, 'Train'),
-                h(:th, 'Stops'),
+                h(:th, 'Used'),
                 h(:th, 'Revenue'),
                 h(:th, th_route_props, 'Route'),
               ]),
@@ -200,6 +203,7 @@ module View
             h(:tbody, trains),
           ]),
           actions(render_halts),
+          dividend_chart,
         ].compact)
       end
 
@@ -234,6 +238,7 @@ module View
         end
 
         reset_all = lambda do
+          @game.reset_adjustable_trains!(@routes)
           @selected_route = nil
           store(:selected_route, @selected_route)
           @routes.clear
@@ -245,6 +250,38 @@ module View
           store(:routes, @routes)
         end
 
+        auto = lambda do
+          router = Engine::AutoRouter.new(@game)
+          @routes = router.compute(
+            @game.current_entity,
+            routes: @routes.reject { |r| r.paths.empty? },
+          )
+          store(:routes, @routes)
+        end
+
+        add_train = lambda do
+          store(:routes, @routes) if @game.add_route_train(@routes)
+        end
+
+        delete_train = lambda do
+          if @game.delete_route_train(@selected_route)
+            @routes.delete(@selected_route)
+            @selected_route = @routes[0]
+            store(:selected_route, @selected_route, skip: true)
+            store(:routes, @routes)
+          end
+        end
+
+        increase_train = lambda do
+          @game.increase_route_train(@selected_route)
+          store(:selected_route, @selected_route)
+        end
+
+        decrease_train = lambda do
+          @game.decrease_route_train(@selected_route)
+          store(:selected_route, @selected_route)
+        end
+
         submit_style = {
           minWidth: '6.5rem',
           marginTop: '1rem',
@@ -252,20 +289,62 @@ module View
         }
 
         revenue = begin
-          @game.format_currency(@game.routes_revenue(active_routes))
+          @game.format_revenue_currency(@game.routes_revenue(active_routes))
         rescue Engine::GameError
           '(Invalid Route)'
         end
 
         render_halts ||= @game.respond_to?(:routes_subsidy) && @game.routes_subsidy(active_routes).positive?
         subsidy = render_halts ? " + #{@game.format_currency(@game.routes_subsidy(active_routes))} (subsidy)" : ''
+        buttons = [
+          h('button.small', { on: { click: clear } }, 'Clear Train'),
+          h('button.small', { on: { click: clear_all } }, 'Clear All'),
+          h('button.small', { on: { click: reset_all } }, 'Reset'),
+        ]
+        if @game_data.dig('settings', 'auto_routing') || @game_data['mode'] == :hotseat
+          buttons << h('button.small', { on: { click: auto } }, 'Auto')
+        end
+        if @game.adjustable_train_list?
+          buttons << h('button.small', { on: { click: add_train } }, '+Train')
+          buttons << h('button.small', { on: { click: delete_train } }, '-Train')
+        end
+        if @game.adjustable_train_sizes?
+          buttons << h('button.small', { on: { click: increase_train } }, '+Size')
+          buttons << h('button.small', { on: { click: decrease_train } }, '-Size')
+        end
         h(:div, { style: { overflow: 'auto', marginBottom: '1rem' } }, [
-          h(:div, [
-            h('button.small', { on: { click: clear } }, 'Clear Train'),
-            h('button.small', { on: { click: clear_all } }, 'Clear All'),
-            h('button.small', { on: { click: reset_all } }, 'Reset'),
-          ]),
+          h(:div, buttons),
           h(:button, { style: submit_style, on: { click: submit } }, 'Submit ' + revenue + subsidy),
+        ])
+      end
+
+      def dividend_chart
+        step = @game.active_step
+        return nil unless step.respond_to?(:chart)
+
+        header, *chart = step.chart(@game.round.current_entity)
+
+        rows = chart.map do |r|
+          h(:tr, [
+            h('td.padded_number', r[0]),
+            h(:td, r[1]),
+          ])
+        end
+
+        table_props = {
+          style: {
+            margin: '0.5rem 0',
+          },
+        }
+
+        h(:table, table_props, [
+          h(:thead, [
+            h(:tr, [
+              h(:th, header[0]),
+              h(:th, header[1]),
+            ]),
+          ]),
+          h(:tbody, rows),
         ])
       end
     end

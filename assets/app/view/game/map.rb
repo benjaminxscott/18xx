@@ -15,10 +15,9 @@ module View
       needs :selected_route, default: nil, store: true
       needs :selected_company, default: nil, store: true
       needs :opacity, default: nil
-      needs :show_coords, default: nil, store: true
-      needs :show_location_names, default: nil, store: true
       needs :show_starting_map, default: false, store: true
       needs :routes, default: [], store: true
+      needs :historical_laid_hexes, default: nil, store: true
       needs :historical_routes, default: [], store: true
       needs :map_zoom, default: nil, store: true
 
@@ -40,8 +39,12 @@ module View
         step = @game.round.active_step(@selected_company)
         current_entity = @selected_company || step&.current_entity
         actions = step&.actions(current_entity) || []
-        # move the selected hex to the back so it renders highest in z space
+
+        unless (laid_hexes = @historical_laid_hexes)
+          laid_hexes = @game.round.respond_to?(:laid_hexes) ? @game.round.laid_hexes : []
+        end
         selected_hex = @tile_selector&.hex
+        # Move the selected hex to the back so they render highest in z space
         @hexes << @hexes.delete(selected_hex) if @hexes.include?(selected_hex)
 
         routes = @routes
@@ -57,15 +60,14 @@ module View
             entity: current_entity,
             clickable: clickable,
             actions: actions,
-            show_coords: show_coords,
-            show_location_names: show_location_names,
             routes: routes,
-            start_pos: @start_pos
+            start_pos: @start_pos,
+            highlight: laid_hexes.include?(hex),
           )
         end
         @hexes.compact!
 
-        children = [render_map]
+        children = [render_map, h(MapZoom, map_zoom: map_zoom)]
 
         if current_entity && @tile_selector
           left = (@tile_selector.x + map_x) * @scale
@@ -77,24 +79,10 @@ module View
             elsif @tile_selector.role != :map
               # Tile selector not for the map
             elsif @tile_selector.hex.tile != @tile_selector.tile
-              h(TileConfirmation)
+              h(TileConfirmation, zoom: map_zoom)
             else
-              # Selecting column A can cause tiles to go off the edge of the map
-              distance = (TileSelector::DISTANCE + (TileSelector::TILE_SIZE / 2)) * map_zoom
-
-              width, height = map_size
-              left = distance if (left - distance).negative?
-              if (left + distance + TileSelector::DROP_SHADOW_SIZE) >= width
-                left = width - TileSelector::DROP_SHADOW_SIZE - distance
-              end
-
-              top = distance if (top - distance).negative?
-              if (top + distance + TileSelector::DROP_SHADOW_SIZE) >= height
-                top = height - TileSelector::DROP_SHADOW_SIZE - distance
-              end
-
               tiles = step.upgradeable_tiles(current_entity, @tile_selector.hex)
-              all_upgrades = @game.all_potential_upgrades(@tile_selector.hex.tile)
+              all_upgrades = @game.all_potential_upgrades(@tile_selector.hex.tile, selected_company: @selected_company)
 
               select_tiles = all_upgrades.map do |tile|
                 real_tile = tiles.find { |t| t.name == tile.name }
@@ -111,7 +99,18 @@ module View
               # Add tiles that aren't part of all_upgrades (Mitsubishi ferry)
               select_tiles.append(*tiles.map { |t| [t, nil] })
 
-              h(TileSelector, layout: @layout, tiles: select_tiles, actions: actions, zoom: map_zoom)
+              return h(:div) if select_tiles.empty?
+
+              distance = TileSelector::DISTANCE * map_zoom
+              width, height = map_size
+              ts_ds = [TileSelector::DROP_SHADOW_SIZE - 5, 0].max # ignore up to 5px of ds (< 2vmin padding of #app)
+              left_col = left < distance
+              right_col = width - left < distance + ts_ds
+              top_row = top < distance
+              bottom_row = height - top < distance + ts_ds
+
+              h(TileSelector, layout: @layout, tiles: select_tiles, actions: actions, zoom: map_zoom, top_row: top_row,
+                              left_col: left_col, right_col: right_col, bottom_row: bottom_row)
             end
 
           # Move the position to the middle of the hex
@@ -129,12 +128,12 @@ module View
         props = {
           style: {
             overflow: 'auto',
-            margin: '1rem 0',
+            margin: '0.5rem 0 0 0',
             position: 'relative',
           },
         }
 
-        h(:div, [h(:div, props, children), render_controls])
+        h(:div, { style: { marginBottom: '1rem' } }, [h(:div, props, children), h(MapControls)])
       end
 
       def map_x
@@ -153,10 +152,6 @@ module View
           [(((@cols.size / 2 + 0.5) * SIDE_TO_SIDE + 2 * GAP) + 1) * map_zoom,
            ((@rows.size * 1.5 + 0.5) * EDGE_LENGTH + 2 * GAP) * map_zoom]
         end
-      end
-
-      def render_controls
-        h(MapControls, show_location_names: show_location_names, show_coords: show_coords, map_zoom: map_zoom)
       end
 
       def render_map
@@ -185,16 +180,6 @@ module View
               start_pos: @start_pos),
           ]),
         ])
-      end
-
-      def show_coords
-        show = Lib::Storage['show_coords']
-        show.nil? ? false : show
-      end
-
-      def show_location_names
-        show = Lib::Storage['show_location_names']
-        show.nil? ? true : show
       end
 
       def map_zoom

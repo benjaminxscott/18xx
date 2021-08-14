@@ -1,9 +1,60 @@
 # frozen_string_literal: true
 
 require './spec/spec_helper'
-require 'engine'
-require 'engine/game/g_1889'
-require 'engine/tile'
+
+EXPECTED_TILE_UPGRADES = {
+  '18Chesapeake' => {
+    'X3' => %w[X7],
+    'X4' => %w[X7],
+    'X5' => %w[X7],
+    'X7' => %w[],
+  },
+  '1889' => {
+    'blank' => %w[7 8 9],
+    'city' => %w[5 6 57],
+    'town' => %w[3 58 437],
+    '3' => %w[],
+    '5' => %w[12 14 15 205 206],
+    '6' => %w[12 13 14 15 205 206],
+    '7' => %w[26 27 28 29],
+    '8' => %w[16 19 23 24 25 28 29],
+    '9' => %w[19 20 23 24 26 27],
+    '12' => %w[448 611],
+    '13' => %w[611],
+    '14' => %w[611],
+    '15' => %w[448 611],
+    '16' => %w[],
+    '19' => %w[45 46],
+    '20' => %w[47],
+    '23' => %w[41 45 47],
+    '24' => %w[42 46 47],
+    '25' => %w[40 45 46],
+    '26' => %w[42 45],
+    '27' => %w[41 46],
+    '28' => %w[39 46],
+    '29' => %w[39 45],
+    '39' => %w[],
+    '40' => %w[],
+    '41' => %w[],
+    '42' => %w[],
+    '45' => %w[],
+    '46' => %w[],
+    '47' => %w[],
+    '57' => %w[14 15 205 206],
+    '58' => %w[],
+    '205' => %w[448 611],
+    '206' => %w[448 611],
+    '437' => %w[],
+    '438' => %w[439],
+    '439' => %w[492],
+    '440' => %w[466],
+    '448' => %w[],
+    '465' => %w[],
+    '466' => %w[],
+    '492' => %w[],
+    '611' => %w[],
+  },
+}.freeze
 
 module Engine
   include Engine::Part
@@ -45,63 +96,9 @@ module Engine
     end
 
     describe '#upgrades_to?' do
-      EXPECTED_TILE_UPGRADES = {
-        '18Chesapeake' => {
-          'X3' => %w[X7],
-          'X4' => %w[X7],
-          'X5' => %w[X7],
-          'X7' => %w[],
-        },
-        '1889' => {
-          'blank' => %w[7 8 9],
-          'city' => %w[5 6 57],
-          'town' => %w[3 58 437],
-          '3' => %w[],
-          '5' => %w[12 14 15 205 206],
-          '6' => %w[12 13 14 15 205 206],
-          '7' => %w[26 27 28 29],
-          '8' => %w[16 19 23 24 25 28 29],
-          '9' => %w[19 20 23 24 26 27],
-          '12' => %w[448 611],
-          '13' => %w[611],
-          '14' => %w[611],
-          '15' => %w[448 611],
-          '16' => %w[],
-          '19' => %w[45 46],
-          '20' => %w[47],
-          '23' => %w[41 45 47],
-          '24' => %w[42 46 47],
-          '25' => %w[40 45 46],
-          '26' => %w[42 45],
-          '27' => %w[41 46],
-          '28' => %w[39 46],
-          '29' => %w[39 45],
-          '39' => %w[],
-          '40' => %w[],
-          '41' => %w[],
-          '42' => %w[],
-          '45' => %w[],
-          '46' => %w[],
-          '47' => %w[],
-          '57' => %w[14 15 205 206],
-          '58' => %w[],
-          '205' => %w[448 611],
-          '206' => %w[448 611],
-          '437' => %w[],
-          '438' => %w[439],
-          '439' => %w[492],
-          '440' => %w[466],
-          '448' => %w[],
-          '465' => %w[],
-          '466' => %w[],
-          '492' => %w[],
-          '611' => %w[],
-        },
-      }.freeze
-
       EXPECTED_TILE_UPGRADES.each do |game_title, upgrades|
         it "correctly upgrades tiles for #{game_title}" do
-          game = Engine::GAMES_BY_TITLE[game_title].new(%w[p1 p2 p3])
+          game = Engine.game_by_title(game_title).new(%w[p1 p2 p3])
 
           aggregate_failures 'tile upgrades' do
             upgrades.keys.each do |t|
@@ -216,7 +213,7 @@ module Engine
           'O11' => [{ yellow: 30, brown: 30 }],
         },
       }.each do |game_title, specs|
-        game = Engine::GAMES_BY_TITLE[game_title].new(%w[p1 p2 p3])
+        game = Engine.game_by_title(game_title).new(%w[p1 p2 p3])
         describe game_title do
           specs.each do |hex, expected_revenue|
             tile = game.hex_by_id(hex).tile

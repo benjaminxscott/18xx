@@ -16,13 +16,16 @@ class Api
 
         # POST '/api/user/'
         r.is do
-          halt(400, 'Invalid email address') unless /^[^@\s]+@[^@\s]+\.[^@\s]+$/.match?(r['email'])
-
           params = {
             name: r['name'],
             email: r['email'],
             password: r['password'],
-            settings: { notifications: r['notifications'] },
+            settings: {
+              notifications: r['notifications'],
+              webhook: r['webhook'],
+              webhook_url: r['webhook_url'],
+              webhook_user_id: r['webhook_user_id'],
+            },
           }.reject { |_, v| v.empty? }
 
           login_user(User.create(params))
@@ -99,7 +102,7 @@ class Api
   end
 
   def login_user(user)
-    token = Session.create(token: SecureRandom.hex, user: user).token
+    token = Session.create(token: SecureRandom.hex, user: user, ip: request.ip).token
 
     request.response.set_cookie(
       'auth_token',
@@ -107,7 +110,7 @@ class Api
       expires: Date.today + Session::EXPIRE_TIME,
       domain: nil,
       httponly: true,
-      secure: true,
+      secure: PRODUCTION,
       path: '/',
     )
 

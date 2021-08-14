@@ -18,15 +18,16 @@ module Engine
     include Passer
     include Spender
 
-    attr_reader :name, :full_name
+    attr_reader :name, :full_name, :type
 
-    def initialize(sym:, name:, **opts)
+    def initialize(sym:, name:, abilities: [], **opts)
       @name = sym
       @full_name = name
       @floated = false
       @closed = false
+      @type = opts[:type]&.to_sym
       init_operator(opts)
-      init_abilities(opts[:abilities])
+      init_abilities(abilities)
     end
 
     def companies

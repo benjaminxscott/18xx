@@ -40,7 +40,7 @@ module Lib
         if (error = data['error'])
           @root.store(:flash_opts, error)
         elsif block
-          block.call(data)
+          yield(data)
         end
       end
     end
@@ -50,7 +50,7 @@ module Lib
         if (error = data['error'])
           @root.store(:flash_opts, error)
         elsif block
-          block.call(data)
+          yield(data)
         end
       end
     end
@@ -58,7 +58,7 @@ module Lib
     private
 
     def send(path, method, data, prefix, block) # rubocop:disable Lint/UnusedMethodArgument
-      data = data&.merge('_client_id': `MessageBus.clientId`)
+      data = data&.merge(_client_id: `MessageBus.clientId`)
 
       %x{
         var payload = {

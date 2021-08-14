@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'lib/color'
 require 'lib/settings'
 require 'lib/truncate'
 require 'view/game_row'
@@ -9,7 +8,6 @@ require 'view/link'
 module View
   class GameCard < Snabberb::Component
     include GameManager
-    include Lib::Color
     include Lib::Settings
 
     needs :user
@@ -17,6 +15,12 @@ module View
     needs :confirm_delete, store: true, default: false
     needs :confirm_kick, store: true, default: nil
     needs :flash_opts, default: {}, store: true
+
+    BUTTON_STYLE = {
+      margin: '0',
+      padding: '0.2rem 0',
+      width: '3.5rem',
+    }.freeze
 
     def render
       h('div.game.card', [
@@ -52,6 +56,7 @@ module View
       bg_color =
         case @gdata['status']
         when 'new'
+          buttons << render_invite_link if owner?
           if user_in_game?(@user, @gdata)
             buttons << render_button('Leave', -> { leave_game(@gdata) })
           elsif players.size < @gdata['max_players']
@@ -64,6 +69,9 @@ module View
         when 'finished'
           buttons << render_link(url(@gdata), -> { enter_game(@gdata) }, 'Review')
           FINISHED_GREY
+        when 'archived'
+          buttons << h('p.bold', { style: { color: 'black' } }, 'Archived')
+          FINISHED_GREY
         end
 
       if owner? && (@gdata['status'] == 'new' || @gdata['mode'] == :hotseat)
@@ -74,46 +82,53 @@ module View
                    end
       end
 
-      game = Engine::GAMES_BY_TITLE[@gdata['title']]
-      @min_p, _max_p = Engine.player_range(game)
+      game = Engine.meta_by_title(@gdata['title'])
+      @min_p, _max_p = game::PLAYER_RANGE
 
       can_start = owner? && new? && players.size >= @min_p
       buttons << render_button('Start', -> { start_game(@gdata) }) if can_start
 
       div_props = {
         style: {
-          position: 'relative',
-          padding: '0.3em 0.1rem 0 0.5rem',
+          display: 'grid',
+          grid: '1fr / minmax(10rem, 1fr) auto',
+          gap: '0.5rem',
+          justifyContent: 'space-between',
+          padding: '0.3rem 0.5rem',
           backgroundColor: bg_color,
         },
       }
 
-      text_props = {
+      buttons_props = {
         style: {
-          color: contrast_on(bg_color),
-          display: 'inline-block',
-          maxWidth: '13rem',
+          display: 'grid',
+          grid: '1fr / auto auto',
+          gap: '0.3rem 0.4rem',
+          direction: 'rtl',
+          height: 'max-content',
         },
       }
       owner_props = { attrs: { title: @gdata['user']['name'].to_s } }
+
+      text_props = {
+        style: {
+          color: contrast_on(bg_color),
+        },
+      }
 
       h('div.header', div_props, [
         h(:div, text_props, [
           h(:div, "Game: #{@gdata['title']}"),
           h('div.nowrap', owner_props, "Owner: #{@gdata['user']['name']}"),
         ]),
-        *buttons,
+        h(:div, buttons_props, buttons),
       ])
     end
 
     def render_button(text, action)
       props = {
         style: {
-          top: '1rem',
-          float: 'right',
-          borderRadius: '5px',
-          margin: '0 0.3rem',
-          padding: '0.2rem 0.5rem',
+          **BUTTON_STYLE,
         },
         on: {
           click: action,
@@ -130,10 +145,7 @@ module View
         click: click,
         children: text,
         style: {
-          float: 'right',
-          borderRadius: '5px',
-          margin: '0 0.3rem',
-          padding: '0.2rem 0.5rem',
+          **BUTTON_STYLE,
         },
         class: '.button_link'
       )
@@ -149,7 +161,7 @@ module View
       selected_rules = @gdata.dig('settings', 'optional_rules') || []
       return if selected_rules.empty?
 
-      rendered_rules = Engine::GAMES_BY_TITLE[@gdata['title']]::OPTIONAL_RULES
+      rendered_rules = Engine.meta_by_title(@gdata['title'])::OPTIONAL_RULES
         .select { |r| selected_rules.include?(r[:sym]) }
         .map { |r| r[:short_name] }
         .sort
@@ -158,10 +170,21 @@ module View
       h(:div, [h(:strong, 'Optional Rules: '), rendered_rules])
     end
 
+    def render_invite_link
+      msg = 'Copied invite link to clipboard; you can share this link with '\
+            'other players to invite them to the game'
+
+      invite_url = url(@gdata)
+      flash = lambda do
+        `navigator.clipboard.writeText((window.location + invite_url).replace('//game', '/game'))`
+        store(:flash_opts, { message: msg, color: 'lightgreen' }, skip: false)
+      end
+      render_link(invite_url, flash, 'Invite')
+    end
+
     def render_body
       props = {
         style: {
-          lineHeight: '1.2rem',
           padding: '0.3rem 0.5rem',
         },
       }
@@ -196,26 +219,16 @@ module View
         elm
       end
 
-      id_line = [h(:strong, 'Id: '), @gdata['id'].to_s]
-      if new? && owner?
-        msg = 'Copied invite link to clipboard; you can share this link with '\
-              'other players to invite them to the game'
-
-        invite_url = url(@gdata)
-        flash = lambda do
-          `navigator.clipboard.writeText((window.location + invite_url).replace('//game', '/game'))`
-          store(:flash_opts, { message: msg, color: 'lightgreen' }, skip: false)
-        end
-        id_line << render_link(invite_url, flash, 'Copy Invite Link')
+      children = [h(:div, [h(:strong, 'Id: '), @gdata['id'].to_s])]
+      if @gdata['status'] == 'new'
+        children << h(:div, [h(:i, 'Invite only game')]) if @gdata.dig('settings', 'unlisted')
+        children << h(:div, [h(:i, 'Auto Routing')]) if @gdata.dig('settings', 'auto_routing')
       end
-
-      children = [h(:div, id_line)]
-      children << h(:div, [h(:i, 'Private game')]) if @gdata['status'] == 'new' && @gdata.dig('settings', 'unlisted')
       children << h(:div, [h(:strong, 'Description: '), @gdata['description']]) unless @gdata['description'].empty?
 
       optional = render_optional_rules
       children << optional if optional
-      children << h(:div, [h(:strong, 'Players: '), *p_elm]) if @gdata['status'] != 'finished'
+      children << h(:div, [h(:strong, 'Players: '), *p_elm]) unless %w[finished archived].include?(@gdata['status'])
 
       if new?
         seats = @min_p.to_s + (@min_p == @gdata['max_players'] ? '' : " - #{@gdata['max_players']}")
@@ -224,7 +237,7 @@ module View
           h(:strong, 'Created: '),
           render_time_or_date('created_at'),
         ])
-      elsif @gdata['status'] == 'finished'
+      elsif %w[finished archived].include?(@gdata['status'])
         result = @gdata['result']
           .sort_by { |_, v| -v }
           .map { |k, v| "#{k.truncate} #{v}" }
@@ -254,47 +267,42 @@ module View
     end
 
     def render_broken
-      button = if @confirm_delete != @gdata['id']
-                 render_button('Delete', -> { store(:confirm_delete, @gdata['id']) })
-               else
-                 render_button('Confirm', -> { delete_game(@gdata) })
-               end
+      button = h(:div, [if @gdata['mode'] == 'hotseat'
+                          if @confirm_delete != @gdata['id']
+                            render_button('Delete', -> { store(:confirm_delete, @gdata['id']) })
+                          else
+                            render_button('Confirm', -> { delete_game(@gdata) })
+                          end
+                        end])
 
       header_props = {
         style: {
-          position: 'relative',
-          padding: '0.3em 0.1rem 0 0.5rem',
+          display: 'grid',
+          grid: '1fr / 1fr auto',
+          padding: '0.3em 0.5rem',
           backgroundColor: 'salmon',
-        },
-      }
-
-      text_props = {
-        style: {
-          display: 'inline-block',
-          maxWidth: '13rem',
           color: 'black',
         },
       }
 
       body_props = {
         style: {
-          lineHeight: '1.2rem',
           padding: '0.3rem 0.5rem',
         },
       }
 
       h('div.game.card', [
         h('div.header', header_props, [
-          h(:div, text_props, [
+          h(:div, [
             h(:div, "Game: #{@gdata['title']}"),
             h('div.nowrap', 'Owner: You'),
           ]),
           button,
         ]),
         h(:div, body_props, [
-          h(:div, "Id: #{@gdata['id']}"),
-          h(:div, 'Error rendering game card:'),
-          h(:div, @gdata.to_s[0..500]),
+          h('div.bold', 'Error rendering game card'),
+          h(:div, [h('span.bold', 'Id: '), h(:span, @gdata['id'])]),
+          h(:div, [h('span.bold', 'Data: '), h(:span, [@gdata.to_s[0..300], ' […]'])]),
         ]),
       ])
     end

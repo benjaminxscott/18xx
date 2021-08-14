@@ -5,13 +5,23 @@ require_relative 'base'
 module Engine
   module Step
     module Tracker
+      def round_state
+        {
+          num_laid_track: 0,
+          upgraded_track: false,
+          laid_hexes: [],
+        }
+      end
+
       def setup
-        @upgraded = false
-        @laid_track = 0
+        @round.num_laid_track = 0
+        @round.upgraded_track = false
+        @round.laid_hexes = []
       end
 
       def can_lay_tile?(entity)
-        return true if tile_lay_abilities(entity, time: type, passive_ok: false)
+        return true if tile_lay_abilities_should_block?(entity)
+        return true if can_buy_tile_laying_company?(entity, time: type)
 
         action = get_tile_lay(entity)
         return false unless action
@@ -20,28 +30,50 @@ module Engine
       end
 
       def get_tile_lay(entity)
-        action = @game.tile_lays(entity)[@laid_track]&.clone
+        corporation = get_tile_lay_corporation(entity)
+        action = @game.tile_lays(corporation)[@round.num_laid_track]&.clone
         return unless action
 
-        action[:lay] = !@upgraded if action[:lay] == :not_if_upgraded
-        action[:upgrade] = !@upgraded if action[:upgrade] == :not_if_upgraded
+        action[:lay] = !@round.upgraded_track if action[:lay] == :not_if_upgraded
+        action[:upgrade] = !@round.upgraded_track if action[:upgrade] == :not_if_upgraded
         action[:cost] = action[:cost] || 0
+        action[:upgrade_cost] = action[:upgrade_cost] || action[:cost]
+        action[:cannot_reuse_same_hex] = action[:cannot_reuse_same_hex] || false
         action
       end
 
-      def lay_tile_action(action)
-        tile = action.tile
-        tile_lay = get_tile_lay(action.entity)
-        raise GameError, 'Cannot lay an upgrade now' if tile.color != :yellow && !(tile_lay && tile_lay[:upgrade])
-        raise GameError, 'Cannot lay a yellow now' if tile.color == :yellow && !(tile_lay && tile_lay[:lay])
-
-        lay_tile(action, extra_cost: tile_lay[:cost])
-        @upgraded = true if action.tile.color != :yellow
-        @laid_track += 1
+      def get_tile_lay_corporation(entity)
+        entity.company? ? entity.owner : entity
       end
 
-      def tile_lay_abilities(entity, **kwargs, &block)
-        kwargs[:time] = [type, 'owning_corp_or_turn'] unless kwargs[:time]
+      def lay_tile_action(action, entity: nil, spender: nil)
+        tile = action.tile
+        old_tile = action.hex.tile
+        tile_lay = get_tile_lay(action.entity)
+        raise GameError, 'Cannot lay an upgrade now' if old_tile.color != :white && !(tile_lay && tile_lay[:upgrade])
+        raise GameError, 'Cannot lay a yellow now' if tile.color == :yellow && !(tile_lay && tile_lay[:lay])
+        if tile_lay[:cannot_reuse_same_hex] && @round.laid_hexes.include?(action.hex)
+          raise GameError, "#{action.hex.id} cannot be layed as this hex was already layed on this turn"
+        end
+
+        extra_cost = tile.color == :yellow ? tile_lay[:cost] : tile_lay[:upgrade_cost]
+
+        lay_tile(action, extra_cost: extra_cost, entity: entity, spender: spender)
+        upgraded_track(old_tile, tile, action.hex)
+        @round.num_laid_track += 1
+        @round.laid_hexes << action.hex
+      end
+
+      def upgraded_track(from, _to, _hex)
+        @round.upgraded_track = true if from.color != :white
+      end
+
+      def tile_lay_abilities_should_block?(entity)
+        Array(abilities(entity, time: type, passive_ok: false)).any? { |a| !a.consume_tile_lay }
+      end
+
+      def abilities(entity, **kwargs, &block)
+        kwargs[:time] = [type] unless kwargs[:time]
         @game.abilities(entity, :tile_lay, **kwargs, &block)
       end
 
@@ -52,17 +84,19 @@ module Engine
         hex = action.hex
         rotation = action.rotation
         old_tile = hex.tile
+        graph = @game.graph_for_entity(entity)
 
         @game.companies.each do |company|
+          break if @game.loading
           next if company.closed?
           next unless (ability = @game.abilities(company, :blocks_hexes))
 
-          raise GameError, "#{hex.id} is blocked by #{company.name}" if ability.hexes.include?(hex.id)
+          raise GameError, "#{hex.id} is blocked by #{company.name}" if @game.hex_blocked_by_ability?(entity, ability, hex)
         end
 
         tile.rotate!(rotation)
 
-        unless @game.upgrades_to?(old_tile, tile, entity.company?)
+        unless @game.upgrades_to?(old_tile, tile, entity.company?, selected_company: entity.company? && entity || nil)
           raise GameError, "#{old_tile.name} is not upgradeable to #{tile.name}"
         end
         if !@game.loading && !legal_tile_rotation?(entity, hex, tile)
@@ -73,36 +107,50 @@ module Engine
 
         hex.lay(tile)
 
-        @game.graph.clear
+        # Impassable hex is no longer impassible, update neighbors
+        if @game.class::IMPASSABLE_HEX_COLORS.include?(old_tile.color)
+          hex.all_neighbors.each do |direction, neighbor|
+            next if hex.tile.borders.any? { |border| border.edge == direction && border.type == :impassable }
+
+            neighbor.neighbors[neighbor.neighbor_direction(hex)] = hex
+            hex.neighbors[direction] = neighbor
+          end
+        end
+
+        graph.clear
         free = false
         discount = 0
         teleport = false
+        ability_found = false
 
-        tile_lay_abilities(entity) do |ability|
+        abilities(entity) do |ability|
           next if ability.owner != entity
-          next if !ability.hexes.empty? && (!ability.hexes.include?(hex.id) || !ability.tiles.include?(tile.name))
+          next if !ability.hexes.empty? && !ability.hexes.include?(hex.id)
+          next if !ability.tiles.empty? && !ability.tiles.include?(tile.name)
 
-          raise GameError, "Track laid must be connected to one of #{spender.id}'s stations" if ability.reachable &&
-            hex.name != spender.coordinates &&
-            !@game.loading &&
-            !@game.graph.reachable_hexes(spender)[hex]
+          ability_found = true
+          if ability.type == :teleport
+            teleport = true
+            free = true if ability.free_tile_lay
+            if ability.cost&.positive?
+              spender.spend(ability.cost, @game.bank)
+              @log << "#{spender.name} (#{ability.owner.sym}) spends #{@game.format_currency(ability.cost)} "\
+                      "and teleports to #{hex.name} (#{hex.location_name})"
+            end
+          else
+            raise GameError, "Track laid must be connected to one of #{spender.id}'s stations" if ability.reachable &&
+              hex.name != spender.coordinates &&
+              !@game.loading &&
+              !graph.reachable_hexes(spender)[hex]
 
-          free = ability.free
-          discount = ability.discount
-          extra_cost += ability.cost
+            free = ability.free
+            discount = ability.discount
+            extra_cost += ability.cost
+          end
         end
 
-        @game.abilities(entity, :teleport) do |ability, _|
-          next if !ability.hexes.include?(hex.id) || !ability.tiles.include?(tile.name)
-
-          teleport = true
-          free = true if ability.free_tile_lay
-          if ability.cost
-            spender.spend(ability.cost, @game.bank) if ability.cost.positive?
-            @log << "#{spender.name} spends #{@game.format_currency(ability.cost)} and teleports to #{hex.name}"
-          end
-
-          ability.use!
+        if entity.company? && !ability_found
+          raise GameError, "#{entity.name} does not have an ability that allows them to lay this tile"
         end
 
         check_track_restrictions!(entity, old_tile, tile) unless teleport
@@ -111,50 +159,51 @@ module Engine
         cost =
           if free
             # call for the side effect of deleting a completed border cost
-            border_cost(tile, entity)
+            remove_border_calculate_cost!(tile, entity, spender)
 
             extra_cost
           else
-            border, border_types = border_cost(tile, entity)
+            border, border_types = remove_border_calculate_cost!(tile, entity, spender)
             terrain += border_types if border.positive?
-            base_cost = @game.upgrade_cost(old_tile, hex, entity) + border + extra_cost - discount
-            @game.tile_cost_with_discount(tile, hex, entity, base_cost)
+            base_cost = @game.upgrade_cost(old_tile, hex, entity, spender) + border + extra_cost - discount
+            @game.tile_cost_with_discount(tile, hex, entity, spender, base_cost)
           end
 
         pay_tile_cost!(entity, tile, rotation, hex, spender, cost, extra_cost)
 
-        cities = tile.cities
-        if old_tile.paths.empty? &&
-            !tile.paths.empty? &&
-            cities.size > 1 &&
-            cities.flat_map(&:tokens).any?
-          token = cities.flat_map(&:tokens).find(&:itself)
-          @round.pending_tokens << {
-            entity: entity,
-            hexes: [action.hex],
-            token: token,
-          }
-
-          token.remove!
-        end
-        return if terrain.empty?
+        update_token!(action, entity, tile, old_tile)
 
         @game.all_companies_with_ability(:tile_income) do |company, ability|
-          if terrain.include?(ability.terrain) && (!ability.owner_only || company.owner == entity)
-            # If multiple borders are connected bonus counts each individually
-            income = ability.income * terrain.find_all { |t| t == ability.terrain }.size
-            @game.bank.spend(income, company.owner)
-            @log << "#{company.owner.name} earns #{@game.format_currency(income)}"\
-              " for the #{ability.terrain} tile built by #{company.name}"
+          if !ability.terrain
+            # company with tile income ability that pays for all tiles
+            pay_all_tile_income(company, ability)
+          else
+            # company with tile income for specific terrain
+            pay_terrain_tile_income(company, ability, terrain, entity, spender)
           end
         end
       end
 
-      def update_tile_lists(tile, old_tile)
-        @game.add_extra_tile(tile) if tile.unlimited
+      def pay_all_tile_income(company, ability)
+        income = ability.income
+        @game.bank.spend(income, company.owner)
+        @log << "#{company.owner.name} earns #{@game.format_currency(income)}"\
+                " for the tile built by #{company.name}"
+      end
 
-        @game.tiles.delete(tile)
-        @game.tiles << old_tile unless old_tile.preprinted
+      def pay_terrain_tile_income(company, ability, terrain, entity, spender)
+        return unless terrain.include?(ability.terrain)
+        return if ability.owner_only && company.owner != entity && company.owner != spender
+
+        # If multiple borders are connected bonus counts each individually
+        income = ability.income * terrain.count { |t| t == ability.terrain }
+        @game.bank.spend(income, company.owner)
+        @log << "#{company.owner.name} earns #{@game.format_currency(income)}"\
+                " for the #{ability.terrain} tile built by #{company.name}"
+      end
+
+      def update_tile_lists(tile, old_tile)
+        @game.update_tile_lists(tile, old_tile)
       end
 
       def pay_tile_cost!(entity, tile, rotation, hex, spender, cost, _extra_cost)
@@ -162,14 +211,34 @@ module Engine
         spender.spend(cost, @game.bank) if cost.positive?
 
         @log << "#{spender.name}"\
-          "#{spender == entity ? '' : " (#{entity.sym})"}"\
-          "#{cost.zero? ? '' : " spends #{@game.format_currency(cost)} and"}"\
-          " lays tile ##{tile.name}"\
-          " with rotation #{rotation} on #{hex.name}"\
-          "#{tile.location_name.to_s.empty? ? '' : " (#{tile.location_name})"}"
+                "#{spender == entity || !entity.company? ? '' : " (#{entity.sym})"}"\
+                "#{cost.zero? ? '' : " spends #{@game.format_currency(cost)} and"}"\
+                " lays tile ##{tile.name}"\
+                " with rotation #{rotation} on #{hex.name}"\
+                "#{tile.location_name.to_s.empty? ? '' : " (#{tile.location_name})"}"
       end
 
-      def border_cost(tile, entity)
+      def update_token!(action, entity, tile, old_tile)
+        cities = tile.cities
+        if old_tile.paths.empty? &&
+            !tile.paths.empty? &&
+            cities.size > 1 &&
+            !(tokens = cities.flat_map(&:tokens).compact).empty?
+          tokens.each do |token|
+            actor = entity.company? ? entity.owner : entity
+            @round.pending_tokens << {
+              entity: actor,
+              hexes: [action.hex],
+              token: token,
+            }
+            @log << "#{actor.name} must choose city for token"
+
+            token.remove!
+          end
+        end
+      end
+
+      def remove_border_calculate_cost!(tile, entity, spender)
         hex = tile.hex
         types = []
 
@@ -184,34 +253,45 @@ module Engine
           tile.borders.delete(border)
           neighbor.tile.borders.map! { |nb| nb.edge == hex.invert(edge) ? nil : nb }.compact!
 
-          ability = entity.all_abilities.find do |a|
-            (a.type == :tile_discount) &&
-             a.terrain &&
-             (border.type == a.terrain) &&
-             (!a.hexes || a.hexes.include?(hex.name))
-          end
-          discount = ability&.discount || 0
-
-          if discount.positive?
-            @log << "#{entity.name} receives a discount of "\
-            "#{@game.format_currency(discount)} from "\
-            "#{ability.owner.name}"
-          end
-
-          cost - discount
+          cost - border_cost_discount(entity, spender, border, cost, hex)
         end
         [total_cost, types]
       end
 
+      def border_cost_discount(entity, spender, border, cost, hex)
+        entity.all_abilities.each do |a|
+          next if (a.type != :tile_discount) ||
+            !a.terrain ||
+            (border.type != a.terrain) ||
+            (a.hexes && !a.hexes.include?(hex.name))
+
+          discount = [a.discount, cost].min
+          if discount.positive?
+            @log << "#{spender.name} receives a discount of #{@game.format_currency(discount)} from" \
+                    " #{a.owner.name}"
+          end
+          return discount
+        end
+
+        0
+      end
+
       def check_track_restrictions!(entity, old_tile, new_tile)
         return if @game.loading || !entity.operator?
+
+        graph = @game.graph_for_entity(entity)
+
+        raise GameError, 'New track must override old one' if !@game.class::ALLOW_REMOVING_TOWNS &&
+            old_tile.city_towns.any? do |old_city|
+              new_tile.city_towns.none? { |new_city| (old_city.exits - new_city.exits).empty? }
+            end
 
         old_paths = old_tile.paths
         changed_city = false
         used_new_track = old_paths.empty?
 
         new_tile.paths.each do |np|
-          next unless @game.graph.connected_paths(entity)[np]
+          next unless graph.connected_paths(entity)[np]
 
           op = old_paths.find { |path| np <= path }
           used_new_track = true unless op
@@ -267,7 +347,7 @@ module Engine
         multi_city_upgrade = new_ctedges.size > 1 && old_ctedges.size > 1
 
         new_exits.all? { |edge| hex.neighbors[edge] } &&
-          !(new_exits & available_hex(entity, hex)).empty? &&
+          !(new_exits & hex_neighbors(entity, hex)).empty? &&
           old_paths.all? { |path| new_paths.any? { |p| path <= p } } &&
           # Count how many cities on the new tile that aren't included by any of the old tile.
           # Make sure this isn't more than the number of new cities added.
@@ -282,6 +362,36 @@ module Engine
           tile.rotate!(rotation)
           legal_tile_rotation?(entity, hex, tile)
         end
+      end
+
+      def hex_neighbors(entity, hex)
+        @game.graph_for_entity(entity).connected_hexes(entity)[hex]
+      end
+
+      def can_buy_tile_laying_company?(entity, time:)
+        return false unless entity == current_entity
+        return false unless @game.phase.status.include?('can_buy_companies')
+
+        @game.purchasable_companies(entity).any? do |company|
+          next false unless company.min_price <= buying_power(entity)
+
+          company.all_abilities.any? { |a| a.type == :tile_lay && a.when?(time) }
+        end
+      end
+
+      def tracker_available_hex(entity, hex)
+        connected = hex_neighbors(entity, hex)
+        return nil unless connected
+
+        tile_lay = get_tile_lay(entity)
+        return nil unless tile_lay
+
+        color = hex.tile.color
+        return nil if color == :white && !tile_lay[:lay]
+        return nil if color != :white && !tile_lay[:upgrade]
+        return nil if color != :white && tile_lay[:cannot_reuse_same_hex] && @round.laid_hexes.include?(hex)
+
+        connected
       end
     end
   end

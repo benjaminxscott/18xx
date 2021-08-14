@@ -14,23 +14,30 @@ module View
       needs :follow_scroll, default: true, store: true
       needs :selected_action_id, default: nil, store: true
       needs :limit, default: nil
+      needs :scroll_pos, default: nil
+      needs :chat_input, default: ''
+      needs :show_chat, default: true, store: true
+      needs :show_log, default: true, store: true
 
       def render
-        children = [render_log]
+        children = [render_log_choices, render_log]
 
         @player = @game.player_by_id(@user['id']) if @user
 
-        enter = lambda do |event|
+        key_event = lambda do |event|
           event = Native(event)
-          code = event['keyCode']
+          key = event['key']
 
-          if code && code == 13
+          case key
+          when 'Enter'
             message = event['target']['value']
             if message.strip != ''
               event['target']['value'] = ''
               sender = @player || Engine::Player.new(@game_data['user']['id'], @game_data['user']['name'])
               process_action(Engine::Action::Message.new(sender, message: message))
             end
+          when 'Escape'
+            `document.getElementById('game').focus()`
           end
         end
 
@@ -48,13 +55,18 @@ module View
                   margin: 'auto 0',
                 },
               }, [@user['name'] + ':']),
-            h(:textarea,
+            h('input#chatbar',
+              attrs: {
+                autocomplete: 'off',
+                title: 'hotkey: c – esc to leave',
+                type: 'text',
+                value: @chat_input,
+              },
               style: {
                 marginLeft: '0.5rem',
-                height: '1.25rem',
                 flex: '1',
               },
-              on: { keyup: enter }),
+              on: { keyup: key_event }),
             ])
         end
 
@@ -100,6 +112,10 @@ module View
           elm.scrollTop = elm.scrollHeight
         end
 
+        scroll_to_pos = lambda do |vnode|
+          Native(vnode)['elm'].scrollTop = @scroll_pos
+        end
+
         scroll_handler = lambda do |event|
           elm = Native(event).target
           bottom = elm.scrollHeight - elm.scrollTop <= elm.clientHeight + 5
@@ -110,7 +126,7 @@ module View
           key: 'log',
           hook: {
             postpatch: ->(_, vnode) { scroll_to_bottom.call(vnode) },
-            insert: ->(vnode) { scroll_to_bottom.call(vnode) },
+            insert: ->(vnode) { @scroll_pos ? scroll_to_pos.call(vnode) : scroll_to_bottom.call(vnode) },
             destroy: -> { store(:follow_scroll, true, skip: true) },
           },
           on: { scroll: scroll_handler },
@@ -150,6 +166,9 @@ module View
 
         action_log = log.flat_map do |entry|
           line = entry.message
+
+          next [] if line.is_a?(String) && !@show_log
+          next [] if !line.is_a?(String) && !@show_chat
 
           line_props = {
             style: {
@@ -195,6 +214,23 @@ module View
       def render_date_banner(time)
         date = "-- #{Time.at(time).strftime('%F')} --"
         h('div.chatline', { style: { textAlign: :center } }, date)
+      end
+
+      def render_log_choices
+        h(:div, { style: { marginBottom: '0.3rem', textAlign: 'right' } }, [
+            h(:button,
+              {
+                style: { marginTop: '0' },
+                on: { click: -> { store(:show_log, !@show_log) } },
+              },
+              "Log #{@show_log ? '✅' : '❌'}"),
+            h(:button,
+              {
+                style: { marginTop: '0' },
+                on: { click: -> { store(:show_chat, !@show_chat) } },
+              },
+              "Chat #{@show_chat ? '✅' : '❌'}"),
+          ])
       end
     end
   end

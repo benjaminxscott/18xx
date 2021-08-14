@@ -16,6 +16,7 @@ module Engine
       DEFAULT_STEPS = [
         Step::EndGame,
         Step::Message,
+        Step::Program,
       ].freeze
 
       def initialize(game, steps, **opts)
@@ -34,6 +35,7 @@ module Engine
             singleton_class.class_eval { attr_accessor key }
             send("#{key}=", value)
           end
+          @game.next_turn!
           step.setup
           step
         end
@@ -66,10 +68,6 @@ module Engine
         active_step&.current_entity == entity
       end
 
-      def teleported?(_entity)
-        false
-      end
-
       def pass_description
         active_step.pass_description
       end
@@ -85,9 +83,7 @@ module Engine
 
           process = s.actions(action.entity).include?(type)
           blocking = s.blocking?
-          if blocking && !process
-            raise GameError, "Blocking step #{s.description} cannot process action #{action['id']}"
-          end
+          raise GameError, "Blocking step #{s.description} cannot process action #{action.id}" if blocking && !process
 
           blocking || process
         end
@@ -124,10 +120,18 @@ module Engine
         @steps.find { |step| step.active? && step.actions(entity).include?(action) }
       end
 
+      def step_passed?(action_klass)
+        @steps.any? { |step| step.passed? && step.is_a?(action_klass) }
+      end
+
       def active_step(entity = nil)
         return @steps.find { |step| step.active? && step.actions(entity).any? } if entity
 
         @active_step ||= @steps.find { |step| step.active? && step.blocking? }
+      end
+
+      def auto_actions
+        active_step&.auto_actions(current_entity)
       end
 
       def finished?
@@ -135,6 +139,8 @@ module Engine
       end
 
       def goto_entity!(entity)
+        # If overriding, make sure to call @game.next_turn!
+        @game.next_turn!
         @entity_index = @entities.find_index(entity)
       end
 
@@ -145,6 +151,8 @@ module Engine
       end
 
       def reset_entity_index!
+        # If overriding, make sure to call @game.next_turn!
+        @game.next_turn!
         @entity_index = 0
       end
 
@@ -157,6 +165,10 @@ module Engine
       end
 
       def stock?
+        false
+      end
+
+      def merger?
         false
       end
 

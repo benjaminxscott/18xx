@@ -1,11 +1,14 @@
 # frozen_string_literal: true
 
+require 'lib/settings'
+require 'lib/truncate'
 require 'view/game/actionable'
 
 module View
   module Game
     class Company < Snabberb::Component
       include Actionable
+      include Lib::Settings
 
       needs :company
       needs :bids, default: nil
@@ -33,15 +36,45 @@ module View
       end
 
       def render_bidders
-        bidders_style = {
-          fontWeight: 'normal',
-          margin: '0 0.5rem',
+        table_props = {
+          style: {
+            margin: '0 auto',
+            borderSpacing: '0 1px',
+            fontWeight: 'normal',
+          },
         }
-        names = @bids
+
+        rows = @bids
           .sort_by(&:price)
-          .reverse.map { |bid| "#{bid.entity.name} (#{@game.format_currency(bid.price)})" }
-          .join(', ')
-        h(:div, { style: bidders_style }, names)
+          .reverse.map.with_index do |bid, i|
+            bg_color =
+              if setting_for(:show_player_colors, @game)
+                player_colors(@game.players)[bid.entity]
+              elsif @user && bid.entity.name == @user['name']
+                color_for(i.zero? ? :green : :yellow)
+              else
+                color_for(:bg)
+              end
+            props = {
+              style: {
+                backgroundColor: bg_color,
+                color: contrast_on(bg_color),
+              },
+            }
+            h(:tr, props, [
+              h('td.left', bid.entity.name.truncate(20)),
+              h('td.right', @game.format_currency(bid.price)),
+            ])
+          end
+
+        h(:div, { style: { clear: 'both' } }, [
+           h(:label, 'Bidders:'),
+           h(:table, table_props, [
+             h(:tbody, [
+               *rows,
+             ]),
+           ]),
+        ])
       end
 
       def render
@@ -50,10 +83,10 @@ module View
           render_company_on_card(@company)
         else
           header_style = {
-            background: 'yellow',
+            background: @company.color,
+            color: @company.text_color,
             border: '1px solid',
             borderRadius: '5px',
-            color: 'black',
             marginBottom: '0.5rem',
             fontSize: '90%',
           }
@@ -94,21 +127,28 @@ module View
           if selected?
             props[:style][:backgroundColor] = 'lightblue'
             props[:style][:color] = 'black'
+            props[:style][:border] = '1px solid'
           end
           props[:style][:display] = @display
 
+          header_text = @game.respond_to?(:company_header) ? @game.company_header(@company) : 'PRIVATE COMPANY'
+          revenue_str = if @game.respond_to?(:company_revenue_str)
+                          @game.company_revenue_str(@company)
+                        else
+                          @game.format_currency(@company.revenue)
+                        end
+
+          company_name_str = @game.respond_to?(:company_size) ? "[#{@game.company_size(@company)}] " : ''
+          company_name_str += @company.name
+
           children = [
-            h(:div, { style: header_style }, 'PRIVATE COMPANY'),
-            h(:div, @company.name),
+            h(:div, { style: header_style }, header_text),
+            h(:div, company_name_str),
             h(:div, { style: description_style }, @company.desc),
             h(:div, { style: value_style }, "Value: #{@game.format_currency(@company.value)}"),
-            h(:div, { style: revenue_style }, "Revenue: #{@game.format_currency(@company.revenue)}"),
+            h(:div, { style: revenue_style }, "Revenue: #{revenue_str}"),
           ]
-
-          if @bids&.any?
-            children << h(:div, { style: bidders_style }, 'Bidders:')
-            children << render_bidders
-          end
+          children << render_bidders if @bids&.any?
 
           unless @company.discount.zero?
             children << h(
@@ -119,6 +159,18 @@ module View
           end
 
           children << h('div.nowrap', { style: bidders_style }, "Owner: #{@company.owner.name}") if @company.owner
+          if @game.company_status_str(@company)
+            status_style = {
+              marginTop: '0.5rem',
+              clear: 'both',
+              display: 'inline-block',
+              justifyContent: 'center',
+              width: '100%',
+              backgroundColor: color_for(:bg2),
+              color: color_for(:font2),
+            }
+            children << h(:div, { style: status_style }, @game.company_status_str(@company))
+          end
 
           h('div.company.card', props, children)
         end
@@ -126,38 +178,57 @@ module View
 
       def toggle_desc(event, company)
         event.JS.stopPropagation
-        display = Native(@hidden_divs[company.sym]).elm.style.display
-        Native(@hidden_divs[company.sym]).elm.style.display = display == 'none' ? 'grid' : 'none'
+        elm = Native(@hidden_divs[company.sym]).elm
+        elm.style.display = elm.style.display == 'none' ? 'grid' : 'none'
       end
 
       def render_company_on_card(company)
+        title_str = @game.respond_to?(:company_size) ? "[#{@game.company_size(company)}] company: " : ''
+        title_str += company.name
+        company_name_str = @game.respond_to?(:company_size_str) ? "[#{@game.company_size_str(company)}] " : ''
+        company_name_str += company.name
+
+        extra = []
+        if (uses = company.ability_uses)
+          extra << "#{uses[0]}/#{uses[1]}"
+          title_str += if uses[0].zero?
+                         ', ability already used'
+                       elsif uses[1] > 1
+                         ", #{uses[0]} ability use#{uses[0] > 1 ? 's' : ''} left"
+                       else
+                         ', ability still usable'
+                       end
+        end
+        extra << " #{@game.company_status_str(company)}" if @game.company_status_str(company)
+
         name_props = {
+          attrs: { title: "#{title_str}, click to toggle description" },
           style: {
-            display: 'inline-block',
             cursor: 'pointer',
+            grid: '1fr / 1fr auto',
+            gap: '0 0.2rem',
           },
           on: { click: ->(event) { toggle_desc(event, company) } },
         }
-
         hidden_props = {
           style: {
             display: 'none',
-            gridColumnEnd: "span #{@company.owner.player? ? '3' : '2'}",
+            gridColumnEnd: "span #{@company.owner&.player? ? '3' : '2'}",
             marginBottom: '0.5rem',
             padding: '0.1rem 0.2rem',
             fontSize: '80%',
           },
         }
+        @hidden_divs[company.sym] = h(:div, hidden_props, company.desc)
+        revenue_str = if @game.respond_to?(:company_revenue_str)
+                        @game.company_revenue_str(company)
+                      else
+                        @game.format_currency(company.revenue)
+                      end
 
-        @hidden_divs[company.sym] = h('div#hidden', hidden_props, company.desc)
-
-        extra = []
-        if (uses = company.ability_uses)
-          extra << " (#{uses[0]}/#{uses[1]})"
-        end
-        [h('div.nowrap', name_props, company.name + extra.join(',')),
-         @company.owner.player? ? h('div.right', @game.format_currency(company.value)) : '',
-         h('div.padded_number', @game.format_currency(company.revenue)),
+        [h(:div, name_props, [h('span.nowrap', company_name_str), h(:span, extra)]),
+         @game.show_value_of_companies?(company.owner) ? h('div.right', @game.format_currency(company.value)) : '',
+         h('div.padded_number', revenue_str),
          @hidden_divs[company.sym]]
       end
     end

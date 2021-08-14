@@ -3,15 +3,18 @@
 require 'lib/settings'
 require 'lib/text'
 require 'view/game/companies'
+require 'view/share_calculation'
 
 module View
   module Game
     class Player < Snabberb::Component
       include Lib::Settings
       include Lib::Text
+      include View::ShareCalculation
 
       needs :player
       needs :game
+      needs :user, default: nil, store: true
       needs :display, default: 'inline-block'
       needs :show_hidden, default: false
       needs :hide_logo, store: true, default: false
@@ -28,19 +31,26 @@ module View
           render_body,
         ]
 
-        if @player.companies.any? || @show_hidden
-          divs << h(Companies, owner: @player, game: @game, show_hidden: @show_hidden)
+        divs << h(Companies, owner: @player, game: @game, show_hidden: @show_hidden) if @player.companies.any? || @show_hidden
+
+        unless (minors = @game.player_card_minors(@player)).empty?
+          divs << render_minors(minors)
         end
 
         h('div.player.card', { style: card_style }, divs)
       end
 
       def render_title
+        bg_color = if setting_for(:show_player_colors, @game)
+                     player_colors(@game.players)[@player]
+                   else
+                     color_for(:bg2)
+                   end
         props = {
           style: {
             padding: '0.4rem',
-            backgroundColor: color_for(:bg2),
-            color: color_for(:font2),
+            backgroundColor: bg_color,
+            color: contrast_on(bg_color),
           },
         }
 
@@ -86,16 +96,27 @@ module View
 
         if @game.active_step&.current_actions&.include?('bid')
           committed = @game.active_step.committed_cash(@player, @show_hidden)
-          trs.concat([
-            h(:tr, [
-              h(:td, 'Committed'),
-              h('td.right', @game.format_currency(committed)),
-            ]),
-            h(:tr, [
-              h(:td, 'Available'),
-              h('td.right', @game.format_currency(@player.cash - committed)),
-            ]),
-          ]) if committed.positive?
+          if committed.positive?
+            trs.concat([
+              h(:tr, [
+                h(:td, 'Committed'),
+                h('td.right', @game.format_currency(committed)),
+              ]),
+              h(:tr, [
+                h(:td, 'Available'),
+                h('td.right', @game.format_currency(@player.cash - committed)),
+              ]),
+            ])
+          end
+
+          if @game.active_step.respond_to?(:bidding_tokens)
+            trs.concat([
+              h(:tr, [
+                h(:td, 'Bid tokens'),
+                h('td.right', "#{@game.active_step.bidding_tokens(@player)} / #{@game.bidding_token_per_player}"),
+              ]),
+            ])
+          end
         end
 
         trs.concat([
@@ -107,7 +128,21 @@ module View
             h(:td, 'Liquidity'),
             h('td.right', @game.format_currency(@game.liquidity(@player))),
           ]),
-])
+        ])
+
+        if @game.respond_to?(:player_debt) && @game.player_debt(@player).positive?
+          trs << h(:tr, [
+            h(:td, 'Loan'),
+            h('td.right', @game.format_currency(@game.player_debt(@player))),
+          ])
+        end
+
+        if @game.respond_to?(:player_interest) && @game.player_interest(@player).positive?
+          trs << h(:tr, [
+            h(:td, 'Interest'),
+            h('td.right', @game.format_currency(@game.player_interest(@player))),
+          ])
+        end
 
         if @game.respond_to?(:bidding_power)
           trs << h(:tr, [
@@ -119,6 +154,10 @@ module View
           h(:td, 'Certs'),
           h('td.right', td_cert_props, @game.show_game_cert_limit? ? "#{num_certs}/#{cert_limit}" : num_certs.to_s),
         ])
+        trs << h(:tr, [
+          h(:td, 'Shares'),
+          h('td.right', td_cert_props, (@game.all_corporations.sum { |c| c.minor? ? 0 : num_shares_of(@player, c) }).to_s),
+        ])
 
         priority_props = {
           attrs: { colspan: '2' },
@@ -129,9 +168,10 @@ module View
           },
         }
 
-        trs << render_priority_deal(priority_props) if @game.class::NEXT_SR_PLAYER_ORDER == :after_last_to_act &&
+        order = @game.next_sr_player_order
+        trs << render_priority_deal(priority_props) if order == :after_last_to_act &&
                                                        @player == @game.priority_deal_player
-        trs << render_next_sr_position(priority_props) if @game.class::NEXT_SR_PLAYER_ORDER == :first_to_pass &&
+        trs << render_next_sr_position(priority_props) if %i[first_to_pass most_cash least_cash].include?(order) &&
                                                           @game.next_sr_position(@player)
 
         h(:table, trs)
@@ -175,7 +215,7 @@ module View
         }
         logo_props = {
           attrs: {
-            src: corporation.logo,
+            src: setting_for(:simple_logos, @game) ? corporation.simple_logo : corporation.logo,
           },
           style: {
             height: '20px',
@@ -186,9 +226,37 @@ module View
         children << h('td.center', td_props, [h(:div, div_props, [h(:img, logo_props)])]) unless @hide_logo
 
         president_marker = corporation.president?(@player) ? '*' : ''
-        children << h(:td, td_props, corporation.name + president_marker)
+        double_marker = shares.any?(&:double_cert) ? ' d' : ''
+        children << h(:td, td_props, corporation.name + president_marker + double_marker)
         children << h('td.right', td_props, "#{shares.sum(&:percent)}%")
         h('tr.row', children)
+      end
+
+      def render_minors(minors)
+        minor_logos = minors.map do |minor|
+          logo_props = {
+            attrs: {
+              src: minor.logo,
+            },
+            style: {
+              paddingRight: '1px',
+              paddingLeft: '1px',
+              height: '20px',
+            },
+          }
+          h(:img, logo_props)
+        end
+        inner_props = {
+          style: {
+            display: 'inline-block',
+          },
+        }
+        outer_props = {
+          style: {
+            textAlign: 'center',
+          },
+        }
+        h('div', outer_props, [h('div', inner_props, minor_logos)])
       end
     end
   end

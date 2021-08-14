@@ -22,8 +22,10 @@ module Engine
     include ShareHolder
     include Spender
 
-    attr_accessor :ipoed, :par_via_exchange, :max_ownership_percent, :float_percent, :capitalization, :max_share_price
-    attr_reader :companies, :min_price, :name, :full_name, :fraction_shares, :type, :id, :needs_token_to_par,
+    attr_accessor :ipoed, :par_via_exchange, :max_ownership_percent, :float_percent, :capitalization, :second_share,
+                  :type, :floatable, :original_par_price, :reservation_color, :min_price, :ipo_owner,
+                  :always_market_price
+    attr_reader :companies, :name, :full_name, :fraction_shares, :id, :needs_token_to_par,
                 :presidents_share
     attr_writer :par_price, :share_price
 
@@ -34,17 +36,27 @@ module Engine
       @id = sym
       @full_name = name
 
-      shares = (opts[:shares] || SHARES).map.with_index do |percent, index|
-        Share.new(self, president: index.zero?, percent: percent, index: index)
+      @ipo_owner = opts[:ipo_owner] || self
+      corp_shares = (opts[:shares] || SHARES).map.with_index do |percent, index|
+        Share.new(self, owner: @ipo_owner, president: index.zero?, percent: percent, index: index)
       end
+      corp_shares.each { |share| @ipo_owner.shares_by_corporation[self] << share }
+      share_holders[@ipo_owner] = corp_shares.sum(&:percent)
 
-      shares.each { |share| shares_by_corporation[self] << share }
-      @fraction_shares = shares.find { |s| (s.percent % 10).positive? }
-      @presidents_share = shares.first
-      @second_share = shares[1]
+      @fraction_shares = if opts.key?(:fraction_shares)
+                           opts[:fraction_shares]
+                         else
+                           corp_shares.find do |s|
+                             (s.percent % 10).positive?
+                           end
+                         end
+
+      @presidents_share = corp_shares.first
+      @second_share = corp_shares[1]
 
       @share_price = nil
       @par_price = nil
+      @original_par_price = nil
       @ipoed = false
       @companies = []
 
@@ -52,6 +64,8 @@ module Engine
       @capitalization = opts[:capitalization] || :full
       @closed = false
       @float_percent = opts[:float_percent] || 60
+      @float_excludes_market = opts[:float_excludes_market] || false
+      @floatable = opts[:floatable].nil? ? true : opts[:floatable]
       @floated = false
       @max_ownership_percent = opts[:max_ownership_percent] || 60
       @min_price = opts[:min_price]
@@ -59,6 +73,8 @@ module Engine
       @needs_token_to_par = opts[:needs_token_to_par] || false
       @par_via_exchange = nil
       @type = opts[:type]&.to_sym
+      @hide_shares = opts[:hide_shares] || false
+      @reservation_color = opts[:reservation_color]
 
       init_abilities(opts[:abilities])
       init_operator(opts)
@@ -70,12 +86,18 @@ module Engine
     end
 
     def <=>(other)
-      # corporation with higher share price, farthest on the right, and first position on the share price goes first
-      return 1 unless (sp = share_price)
-      return -1 unless (ops = other.share_price)
+      return 1 unless (self_key = sort_order_key)
+      return -1 unless (other_key = other.sort_order_key)
 
-      [ops.price, ops.coordinates.last, -ops.coordinates.first, -ops.corporations.find_index(other)] <=>
-      [sp.price, sp.coordinates.last, -sp.coordinates.first, -sp.corporations.find_index(self)]
+      other_key <=> self_key
+    end
+
+    # sort in operating order, then name: corporation with higher share price,
+    # farthest on the right, and first position on the share price goes first
+    def sort_order_key
+      return unless (sp = share_price)
+
+      [sp.price, sp.coordinates.last, -sp.coordinates.first, -(sp.corporations.find_index(self) || 0), name]
     end
 
     def counts_for_limit
@@ -86,6 +108,10 @@ module Engine
 
     def buy_multiple?
       @share_price ? @share_price.buy_multiple? : false
+    end
+
+    def hide_shares?
+      @hide_shares
     end
 
     def share_price
@@ -105,15 +131,19 @@ module Engine
     end
 
     def num_ipo_shares
-      num_shares_of(self)
+      @ipo_owner.num_shares_of(self)
     end
 
     def reserved_shares
-      shares_by_corporation[self].reject(&:buyable)
+      @ipo_owner.shares_by_corporation[self].reject(&:buyable)
     end
 
     def num_ipo_reserved_shares
       reserved_shares.sum(&:percent) / share_percent
+    end
+
+    def num_treasury_shares
+      num_shares_of(self)
     end
 
     def num_player_shares
@@ -138,6 +168,10 @@ module Engine
       end
     end
 
+    def ipo_is_treasury?
+      @ipo_owner == self
+    end
+
     def corporate_share_holders
       share_holders.select { |s_h, _| s_h.corporation? && s_h != self }
     end
@@ -147,6 +181,10 @@ module Engine
     end
 
     def ipo_shares
+      @ipo_owner.shares.select { |share| share.corporation == self }
+    end
+
+    def treasury_shares
       shares.select { |share| share.corporation == self }
     end
 
@@ -157,11 +195,20 @@ module Engine
     end
 
     def floated?
-      @floated ||= percent_of(self) <= 100 - @float_percent
+      return false unless @floatable
+
+      @floated ||= @ipo_owner.percent_of(self) <= 100 - @float_percent -
+        (@float_excludes_market ? percent_in_market : 0)
     end
 
     def percent_to_float
-      @floated ? 0 : percent_of(self) - (100 - @float_percent)
+      return 0 if @floated
+
+      @ipo_owner.percent_of(self) - (100 - @float_percent - (@float_excludes_market ? percent_in_market : 0))
+    end
+
+    def percent_in_market
+      num_market_shares * share_percent
     end
 
     def unfloat!

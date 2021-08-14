@@ -10,8 +10,8 @@ module Engine
     include Entity
     include Ownable
 
-    attr_accessor :desc, :max_price, :min_price, :revenue, :discount, :value
-    attr_reader :name, :sym, :min_auction_price, :treasury
+    attr_accessor :name, :desc, :max_price, :min_price, :revenue, :discount, :value
+    attr_reader :sym, :min_auction_price, :treasury, :interval, :color, :text_color
 
     def initialize(sym:, name:, value:, revenue: 0, desc: '', abilities: [], **opts)
       @sym = sym
@@ -23,8 +23,11 @@ module Engine
       @discount = opts[:discount] || 0
       @min_auction_price = -@discount
       @closed = false
-      @min_price = @value / 2
+      @min_price = (@value / 2.0).ceil
       @max_price = @value * 2
+      @interval = opts[:interval] # Array of prices or nil
+      @color = opts[:color] || :yellow
+      @text_color = opts[:text_color] || :black
 
       init_abilities(abilities)
     end

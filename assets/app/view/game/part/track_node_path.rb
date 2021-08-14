@@ -16,12 +16,14 @@ module View
         needs :color, default: 'black'
         needs :width, default: 8
         needs :dash, default: '0'
+        needs :pass, default: 1
+        needs :border_props, default: nil
+        needs :inner_props, default: nil
 
-        CROSSOVER_GAP = 3
         STRAIGHT_CROSSOVER = '1 55 63 56'
         GENTLE_CROSSOVER = '1 55 47 56'
 
-        PARALLEL_SPACING = [8, 6, 4].freeze
+        PARALLEL_SPACING = [8, 7, 6].freeze
 
         EDGE_PERP_ANGLES = [90, 30, -30, -90, -150, 150].freeze
 
@@ -138,7 +140,7 @@ module View
           # assume can never have edge1=edge, edge0=non-edge
           if !edge0
             CENTER
-          elsif edge0.to_f != edge0.to_i.to_f
+          elsif edge0 % 1 != 0
             # assume if edge0 is non-integer, then must be a line, no exits
             rot_edge1 = ((edge1 - edge0) + 0.5) % 6
             rot_regions = EDGE0P5_TO_EDGE_LINE_REGIONS[rot_edge1]
@@ -197,6 +199,10 @@ module View
             radius: radius,
             sweep: sweep,
           }
+        end
+
+        def calculate_shift(lane)
+          (lane[1] * 2 - lane[0] + 1) * (@width.to_i + PARALLEL_SPACING[lane[0] - 2]) / 2.0
         end
 
         def calculate_stop_x(ct_edge, tile)
@@ -356,12 +362,14 @@ module View
 
           @need_arc = !@center && @exit && !colinear?(@begin_x, @begin_y, @end_x, @end_y)
 
-          @arc_parameters = arc_parameters(
-            @begin_x,
-            @begin_y,
-            @end_x,
-            @end_y
-          ) if @need_arc
+          if @need_arc
+            @arc_parameters = arc_parameters(
+              @begin_x,
+              @begin_y,
+              @end_x,
+              @end_y
+            )
+          end
 
           return if @path.single? || !@begin_edge && !@end_edge
 
@@ -371,8 +379,7 @@ module View
           begin_lane, end_lane = lanes
 
           if begin_lane[0] > 1
-            begin_shift = (begin_lane[1] * 2 - begin_lane[0] + 1) *
-                          (@width.to_i + PARALLEL_SPACING[begin_lane[0] - 2]) / 2.0
+            begin_shift = calculate_shift(begin_lane)
             begin_delta_x = (begin_shift * Math.cos(begin_shift_edge * 60.0 * Math::PI / 180.0)).round(2)
             begin_delta_y = (begin_shift * Math.sin(begin_shift_edge * 60.0 * Math::PI / 180.0)).round(2)
 
@@ -382,8 +389,7 @@ module View
 
           return unless end_lane[0] > 1
 
-          end_shift = (end_lane[1] * 2 - end_lane[0] + 1) *
-                      (@width.to_i + PARALLEL_SPACING[end_lane[0] - 2]) / 2.0
+          end_shift = calculate_shift(end_lane)
           end_delta_x = (end_shift * Math.cos(end_shift_edge * 60.0 * Math::PI / 180.0)).round(2)
           end_delta_y = (end_shift * Math.sin(end_shift_edge * 60.0 * Math::PI / 180.0)).round(2)
 
@@ -392,6 +398,8 @@ module View
         end
 
         def preferred_render_locations
+          return [{ region_weights: [], x: 0, y: 0 }] unless @pass == 1
+
           [
             {
               region_weights: @center ? EDGE_REGIONS[@begin_edge] : regions(@begin_edge, @end_edge, @need_arc, @exit),
@@ -401,44 +409,80 @@ module View
           ]
         end
 
-        def render_part
+        def build_props(color, width, dash)
           rotation = 60 * @begin_edge
 
           props = {
             attrs: {
               d: "M #{@begin_x} #{@begin_y} "\
                  "L #{@end_x} #{@end_y}",
-              stroke: @color,
-              'stroke-width': @width,
-              'stroke-dasharray': @dash,
+              stroke: color,
+              'stroke-width': width,
+              'stroke-dasharray': dash,
             },
           }
 
-          props[:attrs].merge!(
-            d: "M #{@begin_x} #{@begin_y} "\
-            "A #{@arc_parameters[:radius]} #{@arc_parameters[:radius]} "\
-            "0 0 #{@arc_parameters[:sweep]} #{@end_x} #{@end_y}",
-          ) if @need_arc
+          if @need_arc
+            props[:attrs][:d] = "M #{@begin_x} #{@begin_y} "\
+                                "A #{@arc_parameters[:radius]} #{@arc_parameters[:radius]} "\
+                                "0 0 #{@arc_parameters[:sweep]} #{@end_x} #{@end_y}"
+          end
 
-          d_width = @width.to_i / 2
+          # Calculate the correct x position of the terminal pointer
+          d_width = width.to_i / 2
+          terminal_start_x = d_width
+          terminal_end_x = -d_width
+          begin_lane, = @path.lanes
+          if begin_lane[0] > 1
+            begin_shift = calculate_shift(begin_lane)
+            terminal_start_x += begin_shift
+            terminal_end_x += begin_shift
+          end
+          point_x = (terminal_start_x + terminal_end_x) / 2
 
           # terminal tapered track only supported for centered city/town
-          props[:attrs].merge!(
-            transform: "rotate(#{rotation})",
-            d: "M #{d_width} 60 L #{d_width} 87 L -#{d_width} 87 L -#{d_width} 60 L 0 25 Z",
-            fill: @color,
-            stroke: 'none',
-            'stroke-linecap': 'butt',
-            'stroke-linejoin': 'miter',
-            'stroke-width': (@width.to_i * 0.75).to_s,
-            'stroke-dasharray': @dash,
-          ) if @terminal
+          if @terminal
+            props[:attrs].merge!(
+              transform: "rotate(#{rotation})",
+              d: "M #{terminal_start_x} 70 L #{terminal_start_x} 87 L #{terminal_end_x} 87 "\
+                 "L #{terminal_end_x} 70 L #{point_x} 35 Z",
+              fill: color,
+              stroke: 'none',
+              'stroke-linecap': 'butt',
+              'stroke-linejoin': 'miter',
+              'stroke-width': (width.to_i * 0.75).to_s,
+              'stroke-dasharray': dash,
+            )
+          end
+          props
+        end
+
+        def render_part
+          props = case @pass
+                  when 0
+                    build_props(@border_props['color'], @width + @border_props['width'], 0)
+                  when 1
+                    build_props(@color, @width, @dash)
+                  else
+                    build_props(@inner_props['color'], @width - @inner_props['width'], @inner_props['dash'])
+                  end
 
           children = [h(:path, props)]
-          if @crossover_dash
+
+          if @crossover_dash && @pass == 2
             props[:attrs].merge!(
-              stroke: setting_for(@tile.color),
-              'stroke-width': @width.to_i + CROSSOVER_GAP * 2,
+              stroke: @color,
+              'stroke-width': @width,
+              'stroke-dasharray': @crossover_dash,
+              'stroke-dashoffset': 1,
+            )
+            children.prepend(h(:path, props))
+          end
+
+          if @crossover_dash && @pass.positive?
+            props[:attrs].merge!(
+              stroke: @border_props['color'],
+              'stroke-width': @width + @border_props['width'],
               'stroke-dasharray': @crossover_dash,
               'stroke-dashoffset': 1,
             )

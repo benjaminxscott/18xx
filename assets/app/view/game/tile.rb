@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'lib/settings'
 require 'view/game/part/blocker'
 require 'view/game/part/borders'
 require 'view/game/part/cities'
@@ -13,11 +14,12 @@ require 'view/game/part/upgrades'
 module View
   module Game
     class Tile < Snabberb::Component
+      include Lib::Settings
+
+      needs :game, default: nil
       needs :tile
       needs :routes, default: []
-
       needs :show_coords, default: nil
-      needs :show_location_names, default: true
 
       # helper method to pass @tile and @region_use to every part
       def render_tile_part(part_class, **kwargs)
@@ -37,6 +39,9 @@ module View
 
         return false if revenue.uniq.size > 1
 
+        # avoid obscuring track with revenues
+        return true if @tile.cities.empty? && @tile.city_towns.size == 2 && @tile.exits.size > 4
+
         return false if @tile.cities.sum(&:slots) < 3 && @tile.city_towns.size == 2
 
         true
@@ -53,27 +58,29 @@ module View
         render_revenue = should_render_revenue?
         children << render_tile_part(Part::Track, routes: @routes) if !@tile.paths.empty? || !@tile.stubs.empty?
         children << render_tile_part(Part::Cities, show_revenue: !render_revenue) unless @tile.cities.empty?
-        children << render_tile_part(Part::Towns, routes: @routes) unless @tile.towns.empty?
+
+        children << render_tile_part(Part::Towns, routes: @routes, show_revenue: !render_revenue) unless @tile.towns.empty?
 
         borders = render_tile_part(Part::Borders) if @tile.borders.any?(&:type)
         # OO tiles have different rules...
         rendered_loc_name = render_tile_part(Part::LocationName) if @tile.location_name && @tile.cities.size > 1
-
         children << render_tile_part(Part::Revenue) if render_revenue
-        children << render_tile_part(Part::Label) if @tile.label
+        @tile.labels.each { |x| children << render_tile_part(Part::Label, label: x) }
 
         children << render_tile_part(Part::Upgrades) unless @tile.upgrades.empty?
         children << render_tile_part(Part::Blocker)
         rendered_loc_name = render_tile_part(Part::LocationName) if @tile.location_name && (@tile.cities.size <= 1)
         @tile.reservations.each { |x| children << render_tile_part(Part::Reservation, reservation: x) }
-        children << render_tile_part(Part::Icons) unless @tile.icons.empty?
+        large, normal = @tile.icons.partition(&:large)
+        children << render_tile_part(Part::Icons) unless normal.empty?
+        children << render_tile_part(Part::LargeIcons) unless large.empty?
 
         children << render_tile_part(Part::Assignments) unless @tile.hex&.assignments&.empty?
         # borders should always be the top layer
         children << borders if borders
         children << render_tile_part(Part::Partitions) unless @tile.partitions.empty?
 
-        children << rendered_loc_name if rendered_loc_name && @show_location_names
+        children << rendered_loc_name if rendered_loc_name && setting_for(:show_location_names, @game)
         children << render_coords if @show_coords
 
         children.flatten!

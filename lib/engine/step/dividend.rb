@@ -26,6 +26,9 @@ module Engine
 
       def skip!
         process_dividend(Action::Dividend.new(current_entity, kind: 'withhold'))
+
+        current_entity.operating_history[[@game.turn, @round.round_num]] =
+          OperatingInfo.new([], @game.actions.last, 0, @round.laid_hexes)
       end
 
       def dividend_options(entity)
@@ -48,7 +51,8 @@ module Engine
         entity.operating_history[[@game.turn, @round.round_num]] = OperatingInfo.new(
           routes,
           action,
-          revenue
+          revenue,
+          @round.laid_hexes
         )
 
         entity.trains.each { |train| train.operated = true }
@@ -57,13 +61,17 @@ module Engine
 
         log_run_payout(entity, kind, revenue, action, payout)
 
-        @game.bank.spend(payout[:corporation], entity) if payout[:corporation].positive?
+        payout_corporation(payout[:corporation], entity)
 
         payout_shares(entity, revenue - payout[:corporation]) if payout[:per_share].positive?
 
         change_share_price(entity, payout)
 
         pass!
+      end
+
+      def payout_corporation(amount, entity)
+        @game.bank.spend(amount, entity) if amount.positive?
       end
 
       def log_run_payout(entity, kind, revenue, action, payout)
@@ -125,8 +133,7 @@ module Engine
                       .sort_by { |_r, c| -c }
                       .map { |receiver, cash| "#{@game.format_currency(cash)} to #{receiver.name}" }.join(', ')
 
-        @log << "#{entity.name} pays out #{@game.format_currency(revenue)} = "\
-                        "#{@game.format_currency(per_share)} (#{receivers})"
+        log_payout_shares(entity, revenue, per_share, receivers)
       end
 
       def payout_entity(entity, holder, per_share, payouts)
@@ -175,6 +182,13 @@ module Engine
         end
 
         @log << '-- Event: Obsolete trains rust --' if rusted_trains.any?
+      end
+
+      private
+
+      def log_payout_shares(entity, revenue, per_share, receivers)
+        @log << "#{entity.name} pays out #{@game.format_currency(revenue)} = "\
+                "#{@game.format_currency(per_share)} per share (#{receivers})"
       end
     end
   end

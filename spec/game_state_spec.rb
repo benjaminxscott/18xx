@@ -2,7 +2,6 @@
 
 require 'find'
 
-require 'engine'
 require 'spec_helper'
 
 def game_at_action(game_file, action_id = nil)
@@ -18,7 +17,7 @@ module Engine
     describe '18GA' do
       describe 9222 do
         it 'MRC\'s ability cannot be used by a non-owning corporation' do
-          game = game_at_action(game_file, 297)
+          game = game_at_action(game_file, 248)
           action = {
             'type' => 'lay_tile',
             'entity' => 'MRC',
@@ -31,13 +30,13 @@ module Engine
           expect(game.process_action(action).exception).to be_a(GameError)
         end
         it 'MRC\'s ability can be used by the owning corporation' do
-          game = game_at_action(game_file, 335)
+          game = game_at_action(game_file, 284)
           mrc = game.company_by_id('MRC')
 
           expect(game.active_step).to be_a(Step::Track)
           expect(game.round.actions_for(mrc)).to eq(%w[lay_tile pass])
 
-          game = game_at_action(game_file, 336)
+          game = game_at_action(game_file, 285)
           mrc = game.company_by_id('MRC')
 
           expect(game.active_step).to be_a(Step::Token)
@@ -49,13 +48,13 @@ module Engine
     describe '18Chesapeake' do
       describe 1277 do
         it 'closes Cornelius Vanderbilt when SRR buys a train' do
-          game = game_at_action(game_file, 168)
+          game = game_at_action(game_file, 171)
           expect(game.cornelius.closed?).to eq(false)
 
           srr = game.corporation_by_id('SRR')
           expect(game.abilities(game.cornelius, :shares).shares.first.corporation).to eq(srr)
 
-          game = game_at_action(game_file, 169)
+          game = game_at_action(game_file, 172)
           expect(game.cornelius.closed?).to eq(true)
         end
       end
@@ -71,6 +70,32 @@ module Engine
 
           game = game_at_action(game_file, 200)
           expect(game.cornelius.closed?).to eq(true)
+        end
+      end
+
+      describe 22_383 do
+        it '2p: when one share is in the market for an unfloated corporation, the '\
+           'non-president may do a "buy" action, but then the share is owned by the bank' do
+          game = game_at_action(game_file, 104)
+
+          share_id = 'LV_1'
+          share = game.share_by_id(share_id)
+
+          action = {
+            'type' => 'buy_shares',
+            'entity' => 4985,
+            'entity_type' => 'player',
+            'shares' => [
+              share_id,
+            ],
+            'percent' => 10,
+          }
+
+          expect(share.owner).to eq(game.share_pool)
+
+          game.process_action(action)
+
+          expect(share.owner).to eq(game.bank)
         end
       end
     end
@@ -131,6 +156,15 @@ module Engine
 
           game = game_at_action(game_file, 85)
           expect(game.illinois_central.cash).to be(280)
+        end
+      end
+
+      describe 20_381 do
+        it 'cannot go bankrupt when shares can be emergency issued' do
+          game = game_at_action(game_file, 308)
+          prr = game.corporation_by_id('PRR')
+          expect(game.can_go_bankrupt?(prr.player, prr)).to be(false)
+          expect(game.emergency_issuable_cash(prr)).to eq(10)
         end
       end
     end
@@ -210,6 +244,138 @@ module Engine
           game = game_at_action(game_file, 317)
           sc = game.company_by_id('SC')
           expect(sc.closed?).to eq(true)
+        end
+      end
+    end
+
+    describe '18 Los Angeles' do
+      describe 19_984 do
+        it 'LA Title places a neutral token' do
+          game = game_at_action(game_file, 167)
+
+          la_title = game.company_by_id('LAT')
+          corp = la_title.corporation
+
+          expect(corp.id).to eq('LA')
+          expect(corp.cash).to eq(37)
+          expect(corp.tokens.partition(&:used).map(&:size)).to eq([3, 2])
+
+          action = {
+            'type' => 'place_token',
+            'entity' => 'LAT',
+            'entity_type' => 'company',
+            'city' => '619-0-0',
+            'slot' => 1,
+          }
+          game.process_action(action)
+          token = game.hex_by_id('C8').tile.cities.first.tokens[1]
+
+          expect(token.type).to eq(:neutral)
+
+          # free token, not from the charter
+          expect(corp.cash).to eq(37)
+          expect(corp.tokens.partition(&:used).map(&:size)).to eq([3, 2])
+        end
+
+        it 'Dewey, Cheatham, & Howe places a cheater token from the charter at normal price' do
+          game = game_at_action(game_file, 145)
+
+          dch = game.company_by_id('DC&H')
+          corp = dch.corporation
+          city = game.hex_by_id('C6').tile.cities.first
+
+          # slots before
+          expect(city.tokens.size).to eq(2)
+
+          # corporation cash and tokens before
+          expect(corp.id).to eq('LAIR')
+          expect(corp.cash).to eq(137)
+          expect(corp.tokens.partition(&:used).map(&:size)).to eq([3, 3])
+
+          action = {
+            'type' => 'place_token',
+            'entity' => 'DC&H',
+            'entity_type' => 'company',
+            'city' => '295-0-0',
+            'slot' => 0,
+          }
+          game.process_action(action)
+
+          # cheater token added a slot
+          expect(city.tokens.size).to eq(3)
+
+          token = city.tokens[2]
+          expect(token.type).to eq(:normal)
+
+          # corporation had to pay and use a token from the charter
+          expect(token.corporation).to eq(corp)
+          expect(corp.cash).to eq(57)
+          expect(corp.tokens.partition(&:used).map(&:size)).to eq([4, 2])
+        end
+      end
+    end
+
+    describe '18ZOO' do
+      describe 4 do
+        it 'corporation should earn 2$N for each share in Market' do
+          game = game_at_action(game_file, 14)
+          corporation = game.corporation_by_id('GI')
+          action = {
+            'type' => 'pass',
+            'entity' => 'Player 1',
+            'entity_type' => 'player',
+          }
+          expect(corporation.cash).to eq(28)
+
+          game.process_action(action)
+
+          expect(corporation.cash).to eq(32)
+          expect(game.log.index { |item| item.message == 'GI earns 4$N (2 certs in the Market)' }).to eq(30)
+        end
+      end
+
+      describe 5 do
+        it 'log messages after buy / pass / sell' do
+          game = game_at_action(game_file, 10)
+          expect(game.log[17].message).to_not eq('Player 1 declines to sell shares') # Buy, Pass
+          expect(game.log[18].message).to eq('Player 1 passes') # Pass
+          expect(game.log[21].message).to eq('Player 2 declines to buy shares') # Sell, Pass
+        end
+      end
+
+      describe 17 do
+        it 'whatsup cannot be used if corporation already own maximum number of trains' do
+          game = game_at_action(game_file, 23)
+          action = {
+            'type' => 'choose_ability',
+            'entity' => 'WHATSUP',
+            'entity_type' => 'company',
+            'choice' => {
+              'type' => 'whatsup',
+              'corporation_id' => 'GI',
+              'train_id' => '3S-2',
+            },
+          }
+          expect(game.exception).to be_nil
+          expect(game.process_action(action).exception).to be_a(GameError)
+        end
+      end
+
+      describe 18 do
+        it 'buying a new train after whatsup (on first train on new phase) must not give "new-phase" bonus' do
+          game = game_at_action(game_file, 26)
+          corporation = game.corporation_by_id('GI')
+          action = {
+            'type' => 'buy_train',
+            'entity' => 'GI',
+            'entity_type' => 'corporation',
+            'train' => '3S-1',
+            'price' => 12,
+            'variant' => '3S',
+          }
+          expect(corporation.share_price.price).to eq(7)
+          game.process_action(action)
+          expect(corporation.share_price.price).to eq(8)
         end
       end
     end

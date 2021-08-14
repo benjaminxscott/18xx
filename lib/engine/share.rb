@@ -7,7 +7,8 @@ module Engine
   class Share
     include Ownable
 
-    attr_accessor :percent, :buyable, :counts_for_limit, :cert_size, :last_cert
+    attr_accessor :percent, :buyable, :counts_for_limit, :cert_size, :last_cert,
+                  :double_cert
     attr_reader :corporation, :president, :index
 
     def initialize(corporation, owner: nil, president: false, percent: 10, index: 0, cert_size: 1)
@@ -26,6 +27,9 @@ module Engine
 
       # last_cert: set to true if share must be bought/issued last from its location
       @last_cert = false
+
+      # double_cert: set to true if share should be viewed as a double share
+      @double_cert = false
     end
 
     def id
@@ -38,7 +42,7 @@ module Engine
     end
 
     def price_per_share
-      share_price = @owner == corporation ? corporation.par_price : corporation.share_price
+      share_price = @owner == corporation.ipo_owner ? corporation.par_price : corporation.share_price
       share_price&.price || corporation.min_price
     end
 

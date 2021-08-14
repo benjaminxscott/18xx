@@ -35,13 +35,16 @@ module Engine
         true
       end
 
-      def pass_auction(entity)
-        @log << "#{entity.name} passes on #{auctioning.name}"
-
+      def remove_from_auction(entity)
         @bids[auctioning]&.reject! do |bid|
           bid.entity == entity
         end
         resolve_bids
+      end
+
+      def pass_auction(entity)
+        @log << "#{entity.name} passes on #{auctioning.name}"
+        remove_from_auction(entity)
       end
 
       def min_increment
@@ -76,6 +79,10 @@ module Engine
 
       protected
 
+      def bid_target(bid)
+        bid.company || bid.corporation || bid.minor
+      end
+
       def auctioning
         active_auction { |company, _| company }
       end
@@ -85,7 +92,7 @@ module Engine
       end
 
       def add_bid(bid)
-        company = bid.company || bid.corporation
+        company = bid_target(bid)
         entity = bid.entity
         price = bid.price
         min = min_bid(company)
@@ -100,6 +107,29 @@ module Engine
         bids = @bids[company]
         bids.reject! { |b| b.entity == entity }
         bids << bid
+      end
+
+      def replace_bid(bid)
+        company = bid_target(bid)
+        entity = bid.entity
+        price = bid.price
+        min = min_bid(company)
+        raise GameError, "Minimum bid is #{@game.format_currency(min)} for #{company.name}" if price < min
+        if @game.class::MUST_BID_INCREMENT_MULTIPLE && ((price - min) % @game.class::MIN_BID_INCREMENT).nonzero?
+          raise GameError, "Must increase bid by a multiple of #{@game.class::MIN_BID_INCREMENT}"
+        end
+        if price > max_bid(entity, company)
+          raise GameError, "Cannot afford bid. Maximum possible bid is #{max_bid(entity, company)}"
+        end
+
+        bids = @bids[company]
+        # clear other bids as we are replacing all other bids
+        bids.clear
+        bids << bid
+      end
+
+      def reset_bids
+        @bids.clear
       end
 
       def bids_for_player(player)

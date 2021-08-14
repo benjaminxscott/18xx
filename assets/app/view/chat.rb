@@ -13,9 +13,11 @@ module View
     needs :subscribed, default: false, store: true
 
     def render
-      @connection.subscribe('/chat', 0) do |data|
-        add_line(data)
-      end unless @subscribed
+      unless @subscribed
+        @connection.subscribe('/chat', 0) do |data|
+          add_line(data)
+        end
+      end
 
       store(:subscribed, true, skip: true)
 
@@ -29,9 +31,8 @@ module View
 
       enter = lambda do |event|
         event = Native(event)
-        code = event['keyCode']
 
-        if code && code == 13
+        if event['key'] == 'Enter'
           message = event['target']['value']
           if message.strip != ''
             add_line(user: @user, created_at: Time.now.to_i, message: message)
@@ -43,22 +44,22 @@ module View
 
       chatbar_props = {
         attrs: {
+          autocomplete: 'off',
           placeholder: 'Send a message (Please keep discussions to 18xx)',
+          type: 'text',
         },
         style: {
-          height: '1.4rem',
           width: '100%',
           margin: '0',
           boxSizing: 'border-box',
           borderRadius: '0',
           background: color_for(:bg2),
           color: color_for(:font2),
-          resize: 'vertical',
         },
         on: { keyup: enter },
       }
 
-      children << h('textarea#chatbar', chatbar_props) if @user
+      children << h('input#chatbar', chatbar_props) if @user
 
       props = {
         key: 'global_chat',
@@ -67,6 +68,7 @@ module View
         },
         style: {
           verticalAlign: 'top',
+          marginBottom: '1rem',
         },
       }
 

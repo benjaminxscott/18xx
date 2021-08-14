@@ -99,9 +99,16 @@ class Game < Base
   end
 
   def ordered_players
+    return players.sort_by { |p| settings['player_order'].find_index(p.id) || p.id } if settings['player_order']
+
     players
       .sort_by(&:id)
       .shuffle(random: Random.new(settings['seed'] || 1))
+  end
+
+  def archive!
+    Action.where(game: self).delete
+    update(status: 'archived')
   end
 
   def to_h(include_actions: false, player: nil)

@@ -4,7 +4,7 @@ require_relative 'share_price'
 
 module Engine
   class StockMarket
-    attr_reader :market, :par_prices, :has_close_cell
+    attr_reader :market, :par_prices, :has_close_cell, :zigzag
 
     def initialize(market, unlimited_types, multiple_buy_types: [], zigzag: nil)
       @par_prices = []
@@ -22,6 +22,7 @@ module Engine
           price
         end
       end
+      # note, a lot of behavior depends on the par prices being in descending price order
       @par_prices.sort_by! do |p|
         r, c = p.coordinates
         [p.price, c, r]
@@ -32,14 +33,11 @@ module Engine
       @one_d ||= @market.one?
     end
 
-    def zigzag?
-      !!@zigzag
-    end
-
     def set_par(corporation, share_price)
       share_price.corporations << corporation
       corporation.share_price = share_price
       corporation.par_price = share_price
+      corporation.original_par_price = share_price
     end
 
     def move_right(corporation)
@@ -114,13 +112,9 @@ module Engine
 
     def move(corporation, row, column, force: false)
       share_price = share_price(row, column)
+      return unless share_price
       return if share_price == corporation.share_price
       return if !force && !share_price.normal_movement?
-
-      if corporation.max_share_price == corporation.share_price
-        r, c = corporation.share_price.coordinates
-        return if row > r || column > c
-      end
 
       corporation.share_price.corporations.delete(corporation)
       corporation.share_price = share_price
@@ -128,7 +122,12 @@ module Engine
       share_price.corporations << corporation
     end
 
-    private
+    def share_prices_with_types(types)
+      # Find prices which types includes one of the types passed in
+      @market.flat_map { |m| m.select { |sp| sp && (types & sp&.types).any? } }
+      .sort_by(&:price)
+      .reverse
+    end
 
     def share_price(row, column)
       @market[row]&.[](column)

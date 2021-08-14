@@ -17,27 +17,22 @@ module View
 
     def render_notification
       message = <<~MESSAGE
-
-        <p>1828.Games is now in alpha.<p>
-        <p>The authentication system is now more efficient. You need to log back in and all pins have been deleted.</p>
-        <p>1849 is now in alpha.</p>
-        <p>1860 and 1867 are now in beta. 18Chesapeake: Off The Rails is now in beta with a new stock market.</p>
-
-        <p>Please file <a href='https://github.com/tobymao/18xx/issues'>issues and ideas</a> on
-        <a href='https://github.com/tobymao/18xx/issues'>GitHub</a>.<br>
-        If you have any questions, check out the <a href="https://github.com/tobymao/18xx/wiki/FAQ">FAQ</a> and other
-        resources in our <a href='https://github.com/tobymao/18xx/wiki'>Wiki!</a>
-        </p>
+        <p>Auto-Routing should work in most games now.</p>
+        <p>We now support Slack/Discord notifications. Learn how to use them <a href='https://github.com/tobymao/18xx/wiki/Notifications'>here</a>.</p>
+        <p>Please submit problem reports and make suggestions for improvements on
+        <a href='https://github.com/tobymao/18xx/issues'>GitHub</a>.</p>
+        <p>The <a href='https://github.com/tobymao/18xx/wiki'>18xx.games Wiki</a> has rules, maps,
+        and other information about all the games, along with an FAQ.</p>
 
         <p>Support our publishers: #{Lib::Publisher.link_list.join}.</p>
         <p>You can support this project on <a href='https://www.patreon.com/18xxgames'>Patreon</a>.</p>
 
-        <p>Consider joining the
-        <a href='https://join.slack.com/t/18xxgames/shared_invite/zt-8ksy028m-CSZC~G5QtiFv60_jdqqulQ'>18xx slack</a>.
-        General 18xx.games discussion is in <a href='https://18xxgames.slack.com/archives/CV3R3HPUZ'>#18xxgames</a>,
-        development discussion is in <a href='https://18xxgames.slack.com/archives/C012K0CNY5C'>#18xxgamesdev</a>
-        (you can ask about bugs there), and general 18xx chat in <a href='https://18xxgames.slack.com/archives/C68J3MK2A'>#general</a>.
-        </p>
+        <p>Join the
+        <a href='https://join.slack.com/t/18xxgames/shared_invite/zt-8ksy028m-CSZC~G5QtiFv60_jdqqulQ'>18xx Slack</a>.
+        Chat about 18xx in the <a href='https://18xxgames.slack.com/archives/C68J3MK2A'>#general</a> channel.
+        Discussion of the 18xx.games site is in the
+        <a href='https://18xxgames.slack.com/archives/CV3R3HPUZ'>#18xxgames</a> channel and the developers can be
+        found in the <a href='https://18xxgames.slack.com/archives/C012K0CNY5C'>#18xxgamesdev</a> channel.</p>
       MESSAGE
 
       props = {
@@ -57,7 +52,6 @@ module View
     def render_introduction
       message = <<~MESSAGE
         <p>18xx.games is a website where you can play async or real-time 18xx games (based on the system originally devised by the brilliant Francis Tresham)!
-        <p>Right now, 1817, 1817NA, 1817WO, 1836Jr30, 1846, 1849, 1860, 1867, 1882, 1889, 18AL, 18Chesapeake, 18CO: Rock & Stock, 18GA, 18 Los Angeles, 18MEX, 18MS, 18SJ, and 18TN are implemented.</br>
         If you are new to 18xx games then 1889, 18Chesapeake, or 18MS are good games to begin with.</p>
 
         <p>You can play locally with hot seat mode without an account. If you want to play multiplayer, you'll need to create an account.</p>
@@ -70,7 +64,12 @@ module View
       MESSAGE
 
       props = {
-        props: { innerHTML: message },
+        style: {
+          marginBottom: '1rem',
+        },
+        props: {
+          innerHTML: message,
+        },
       }
 
       h('div#introduction', props)

@@ -5,7 +5,7 @@ require_relative 'base'
 module Engine
   module Round
     class Operating < Base
-      attr_reader :current_operator
+      attr_reader :current_operator, :current_operator_acted
 
       def self.short_name
         'OR'
@@ -34,6 +34,8 @@ module Engine
 
       def after_process(action)
         return if action.type == 'message'
+
+        @current_operator_acted = true if action.entity.corporation == @current_operator
 
         if active_step
           entity = @entities[@entity_index]
@@ -67,11 +69,9 @@ module Engine
       def start_operating
         entity = @entities[@entity_index]
         @current_operator = entity
-        if (ability = teleported?(entity))
-          entity.remove_ability(ability)
-        end
+        @current_operator_acted = false
         entity.trains.each { |train| train.operated = false }
-        @log << "#{entity.owner.name} operates #{entity.name}" unless finished?
+        @log << "#{@game.acting_for_entity(entity).name} operates #{entity.name}" unless finished?
         @game.place_home_token(entity) if @home_token_timing == :operate
         skip_steps
         next_entity! if finished?
@@ -86,10 +86,6 @@ module Engine
         @entities.pop while @entities.last&.corporation? &&
           @entities.last.share_price&.liquidation? &&
           @entities.size > index
-      end
-
-      def teleported?(entity)
-        Array(@game.abilities(entity, :teleport)).find(&:used?)
       end
 
       def operating?

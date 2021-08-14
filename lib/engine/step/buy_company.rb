@@ -14,9 +14,7 @@ module Engine
         return [] if entity.minor?
         return blocks? ? ACTIONS : ACTIONS_NO_PASS if can_buy_company?(entity)
 
-        if blocks? && entity.corporation? && @game.abilities(entity, time: 'owning_corp_or_turn', passive_ok: false)
-          return PASS
-        end
+        return PASS if blocks? && entity.corporation? && @game.abilities(entity, passive_ok: false)
 
         []
       end
@@ -47,6 +45,11 @@ module Engine
         company = action.company
         price = action.price
         owner = company.owner
+
+        buy_company(entity, company, price, owner)
+      end
+
+      def buy_company(entity, company, price, owner)
         raise GameError, "Cannot buy #{company.name} from #{owner.name}" unless @game.company_sellable(company)
 
         min = company.min_price
@@ -83,13 +86,8 @@ module Engine
         @round.company_sellers[company] = owner
 
         entity.companies << company
-        entity.spend(price, owner.nil? ? @game.bank : owner)
+        pay(entity, owner, price, company)
 
-        @game.company_bought(company, entity)
-
-        @log << "#{entity.name} buys #{company.name} from "\
-                "#{owner.nil? ? 'the market' : owner.name} for "\
-                "#{@game.format_currency(price)}"
         log_later.each { |l| @log << l }
       end
 
@@ -103,6 +101,16 @@ module Engine
 
       def setup
         @blocks = @opts[:blocks] || false
+      end
+
+      def pay(entity, owner, price, company)
+        entity.spend(price, owner || @game.bank)
+
+        @game.company_bought(company, entity)
+
+        @log << "#{entity.name} buys #{company.name} from "\
+                "#{owner.nil? ? 'the market' : owner.name} for "\
+                "#{@game.format_currency(price)}"
       end
     end
   end

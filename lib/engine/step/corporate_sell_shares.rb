@@ -42,12 +42,16 @@ module Engine
 
       def can_sell?(entity, bundle)
         return unless bundle
+        return false if entity != bundle.owner
 
         entity != bundle.corporation && !bought?(entity, bundle.corporation)
       end
 
       def process_corporate_sell_shares(action)
         sell_shares(action.entity, action.bundle, swap: action.swap)
+
+        @round.recalculate_order if @round.respond_to?(:recalculate_order)
+
         pass! unless can_sell_any?(action.entity)
       end
 
