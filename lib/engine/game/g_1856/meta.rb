@@ -13,7 +13,7 @@ module Engine
         GAME_DESIGNER = 'Bill Dixon'
         GAME_INFO_URL = 'https://github.com/tobymao/18xx/wiki/1856'
         GAME_LOCATION = 'Ontario, Canada'
-        GAME_RULES_URL = 'https://www.google.com/search?q=1856+rules'
+        GAME_RULES_URL = 'hhttps://lcduarte.com/2015/05/18/1856/1856_Rules.pdf'
 
         GAME_PUBLISHER = :mayfair
 
