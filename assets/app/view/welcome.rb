@@ -51,13 +51,10 @@ module View
         <p>18xx.games is a website where you can play async or real-time 18xx games (based on the system originally devised by the brilliant Francis Tresham)!
         If you are new to 18xx games then Shikoku 1889, 18Chesapeake, or 18MS are good games to begin with.</p>
 
-        <p>You can play locally with hot seat mode without an account. If you want to play multiplayer, you'll need to create an account.</p>
+        <p>You can create a Hotseat game without an account, which will let you play locally on your computer. If you want to view and join open Multiplayer games you'll need to create an account and log in</p>
 
-        <p>If you look at other people's games, you can make moves to play around but it won't affect them and changes won't be saved.
-        You can clone games in the tools tab and then play around locally.</p>
-
-        <p>In multiplayer games, you'll also be able to make moves for other players, this is so people can say 'pass me this SR' and you don't
-        need to wait. To use this feature in a game, enable "Master Mode" in the Tools tab. Please use it politely!</p>
+        <p>Observing a game lets you rewind the game state or test alternative strategies. Your changes are saved locally and do not affect the live game.</p>
+        <p>Enable Master Mode in the Tools tab to make moves for other players. This action is logged as a "master" move and should only be used with permission, e.g. "Please run my routes and pay out dividends"</p>
       MESSAGE
 
       props = {
