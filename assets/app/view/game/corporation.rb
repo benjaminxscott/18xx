@@ -284,9 +284,9 @@ module View
         end
         tokens_body.sort_by! { |t| t[1] ? 1 : -1 }
 
-        @corporation.assignments.each do |assignment, _active|
-          img = @game.class::ASSIGNMENT_TOKENS[assignment]
-          tokens_body << [img, true, assignment]
+        @corporation.assignments.each do |name, _active|
+          img = @game.class::ASSIGNMENT_TOKENS[name]
+          tokens_body << [img, true, name] # aha
         end
 
         h(:div, token_list_props, tokens_body.map do |logo, used, text|
