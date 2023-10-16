@@ -55,6 +55,11 @@ module Engine
                            "#{special_ability.city}, not on city #{city.index}"
         end
 
+        if special_ability&.type == :token && special_ability.hexes.any? && !special_ability.hexes.include?(hex.id)
+          raise GameError, "#{special_ability.owner.name} can only place token on #{special_ability.hexes} hexes"\
+                           ", not on #{hex.id}"
+        end
+
         if special_ability&.type == :teleport &&
            !special_ability.hexes.empty? &&
            !special_ability.hexes.include?(hex.id)
