@@ -15,10 +15,9 @@ module Engine
             revenue: 0,
             min_price: 1,
             max_price: 1,
-            desc: 'When buying the private, a player must immediately place the black “SD” token on any '\
-                  'mineral resource hex on the board in which the black “SD” token blocks an SD spot. '\
-                  'When sold to a corporation, the black SD token will be replaced by a token from the owning corporation. '\
-                  'Can be sold to a corporation for ₡1.',
+            desc: "Upon purchasing this, owning player immediately places a yellow tile on any mineral resource hex.\
+             Then they must place the black \"Old Landing Site\" token in any slot on that tile. \
+                  If sold to a corporation for ₡1, the placed OLS token is converted to a supply depot for that corporation.",
             abilities: [],
             color: nil,
           },
@@ -29,9 +28,9 @@ module Engine
             revenue: 5,
             min_price: 1,
             max_price: 45,
-            desc: 'When this private is bought by a company, the president of the company may choose to add or remove '\
-                  'a 2/3/4/5/6 train to/from the depot. If a train is added, it must be of the '\
-                  'current phase or later. This will close the company. Can be sold to a corporation for ₡1-₡45.',
+            desc: 'When this private is bought by a corporation, its president may choose to add or remove '\
+                  'a 3, 4, 5, or 6 transport of the current phase or later to / from the Depot . '\
+                  'Can be sold to a corporation for ₡1-₡45.',
             abilities: [],
             color: nil,
           },
@@ -42,9 +41,9 @@ module Engine
             revenue: 10,
             min_price: 1,
             max_price: 60,
-            desc: 'The corporation owning the SBC can build and upgrade road tiles crossing the rift. '\
-                  'The owning company receives a bonus of 60 credits after the connection across the rift is '\
-                  'made and the SBC will close. Can be sold to a corporation for ₡1-₡60.',
+            desc: 'Allows the owning corporation to lay tiles across the Rift, '\
+                  'receiving ₡60 credits when a connection is made and closing this company. '\
+                  'Can be sold to a corporation for ₡1-₡60.',
             abilities: [],
             color: nil,
           },
@@ -55,8 +54,8 @@ module Engine
             revenue: 10,
             min_price: 1,
             max_price: 90,
-            desc: 'The owning corporation may place the +20 marker on a mineral or Home Base hex. The +20 '\
-                  'token lasts until the end of the game. This will close the company. Can be sold to a corporation for ₡1-₡90.',
+            desc: 'The owning corporation may close this company to place a +₡20 marker on a mineral or home location hex. '\
+                  'This marker lasts until the end of the game. Can be sold to a corporation for ₡1-₡90.',
             abilities: [
               {
                 type: 'assign_hexes',
@@ -75,8 +74,12 @@ module Engine
             revenue: 20,
             min_price: 1,
             max_price: 120,
-            desc: 'The owning corporation may teleport place the T tile, then may place its cheapest supply '\
-                  'depot on it. This closes the private company. Can be sold to a corporation for ₡1-₡120.',
+            desc: "The owning corporation may place the \"T\" tile on hex F8, even if it does not have a route to the hex.\
+             It may then place its cheapest supply depot there. Either way, this closes the private company. \
+             This occurs during the corporation\’s tile lay step \
+             and is in addition to its tile and supply depot token placements.  \
+             If this private closes before the Passenger Terminal is placed, any corporation may place it on their turn \
+             as one of their tile lays. Can be sold to a corporation for ₡1-₡120.",
             abilities: [
               {
                 type: 'teleport',
